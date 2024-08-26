@@ -5,24 +5,25 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "./base/CoreHubStorage.sol";
-import "./interfaces/IAllocation.sol";
-import "./interfaces/IApNFT.sol";
-import "./interfaces/ICoreskyAirDrop.sol";
-import "./libraries/Errors.sol";
-import "./libraries/Events.sol";
-import "./libraries/Types.sol";
-import "./libraries/MetaTxLib.sol";
-import "./libraries/StorageLib.sol";
-import "./libraries/ApNftLib.sol";
-import "./libraries/AllocationLib.sol";
-
-contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
+import "@openzeppelin/contracts/proxy/Clones.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "./AllocationUpgradeable.sol";
+import "../base/CoreHubStorage.sol";
+import "../interfaces/IAllocation.sol";
+import "../interfaces/IApNFT.sol";
+import "../interfaces/ICoreskyAirDrop.sol";
+import "../libraries/Errors.sol";
+import "../libraries/Events.sol";
+import "../libraries/Types.sol";
+import "../libraries/MetaTxLibUpgradeable.sol";
+import "../libraries/StorageLib.sol";
+import "hardhat/console.sol";
+contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, CoreHubStorage {
     
     using SafeMath for uint256;
     using Address for address;
@@ -30,13 +31,37 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
     using Strings for uint256;
     using ECDSA for bytes32;
     using ECDSA for bytes;
-    constructor(address admin, address operator,address bot) {
-        _setupRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(OPERATOR_ROLE, operator);
-        _grantRole(PROJECT_OPERATOR_ROLE, operator);
-        _setupRole(ROLE_BOT, bot);
+
+    /**
+     * @dev Initializes the contract by setting `admin_`, `operator_`, `bot_` to the Alloction.
+     */
+    function __CoreskyHub_init(
+        address allocationImpl, 
+        address apNFTImpl,
+        address admin_, 
+        address operator_, 
+        address bot_) internal onlyInitializing {
+             __CoreskyHub_init_unchained( allocationImpl, apNFTImpl, admin_, operator_, bot_);
     }
 
+    function __CoreskyHub_init_unchained(
+        address allocationImpl, 
+        address apNFTImpl,
+        address admin_, 
+        address operator_, 
+        address bot_) internal onlyInitializing {
+        _setupRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(OPERATOR_ROLE, operator_);
+        _grantRole(PROJECT_OPERATOR_ROLE, operator_);
+        _setupRole(ROLE_BOT, bot_);
+
+        StorageLib.setPlatformAllocation(allocationImpl);
+        StorageLib.getAllocationOwner()[allocationImpl] = msg.sender;
+        StorageLib.allAllocations().push(allocationImpl);
+
+        StorageLib.setPlatformApNFT(apNFTImpl);
+        maxMintLimit = 50;
+    }
     receive() external payable {}
 
 
@@ -88,13 +113,21 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         uint256 deadline,
         bytes memory botSignature
     ) public onlyRole(PROJECT_OPERATOR_ROLE){
+        if (apNftNo == 0) {
+            require(false, "ApNftDoesNotExist");
+            // revert Errors.ApNftDoesNotExist();
+        }
+        if (StorageLib.getApNFT()[apNftNo] != address(0)) {
+            require(false, "ApNftExist");
+            // revert Errors.ApNftExist();
+        }
         // sign verify
         bytes32 signHash = keccak256(botSignature);
         if(signMap[signHash] > 0){
             require(false, "ApplyProjectVoteAlreadyExists");
             // revert Errors.ApplyProjectVoteAlreadyExists();
         }
-        address recoveredSigner = MetaTxLib.recoveredSigner(
+        address recoveredSigner = MetaTxLibUpgradeable.recoveredSigner(
                 apNftNo,
                 _name,
                 _symbol,
@@ -108,7 +141,13 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         }
         
         signMap[signHash] = 1;
-        ApNftLib.deployApNFT(apNftNo, _name, _symbol, _baseUri);
+
+        address apNFT = Clones.clone(getPlatformApNFT());
+        IApNFT(apNFT).initialize(_name, _symbol, _baseUri);
+
+        StorageLib.getApNFT()[apNftNo] = apNFT;
+
+        emit Events.ApNFTCreated(apNftNo,  apNFT, msg.sender, block.timestamp);
     }
 
     /// get Total Allocation
@@ -132,6 +171,7 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
      * @param _groupID The ID of the presale group to set up.
      * @param _roundID The ID of the presale round to set up.
      * @param _target The target address of the presale.
+     * @param _receipt The receipt address where funds will be sent.
      * @param _payment The address of the ERC20 token to be used for payments (if any).
      * @param _nftPrice The price of each NFT in the presale.
      * @param _startTime The start time for the presale round.
@@ -144,6 +184,7 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         uint256 _groupID,
         uint256 _roundID,
         address _target,
+        address _receipt,
         address _payment,
         uint256 _nftPrice,
         uint256 _startTime,
@@ -157,10 +198,27 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
             // revert Errors.AllocationExist();
         }
         // 创建新合约
-        allocation = AllocationLib.createAllocation(
+        
+        console.log("PlatformAllocation: %s, this: %s", getPlatformAllocation(), address(this));
+        allocation = Clones.clone(getPlatformAllocation());
+        console.log("CreateAllocation: %s", allocation);
+        AllocationUpgradeable all = AllocationUpgradeable(payable(allocation));
+        all.initialize(address(this), address(this));
+        console.log("CreateAllocation initialize: %s", address(this));
+        uint256 _fee = StorageLib.getFee();
+        address _feeTo = StorageLib.getFeeTo();
+
+        if (_fee > 0 && _feeTo != address(0)) {
+            all.setFee(_fee);
+            all.setFeeTo(_feeTo);
+        }
+
+        // create alloction
+        all.allocation(
             _groupID,
             _roundID,
             _target,
+            _receipt,
             _payment,
             _nftPrice,
             _startTime,
@@ -169,6 +227,9 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
             _mintEndTime,
             _totalQuantity
         );
+
+
+        emit Events.AllocationCreated(_roundID, allocation, msg.sender, block.timestamp);
 
         StorageLib.getAllocation()[_roundID] = allocation;
         StorageLib.getAllocationOwner()[allocation] = msg.sender;
@@ -305,6 +366,22 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
     }
 
     /**
+     * @dev Set the allocation fundraising reception address.
+     *
+     * @param _roundID The ID of the presale round.
+     * @param _receipt fundraising reception address.
+     */
+    function setFundraisingReceiptPay(uint256 _roundID, address _receipt) public onlyRole(OPERATOR_ROLE) { 
+        address targetAllocation = _allocation(_roundID);
+        __checkAlloction(targetAllocation);
+        if(_receipt == address(0)){
+            require(false, "InvalidReceipt");
+            // revert Errors.InvalidReceipt();
+        }
+        IAllocation(targetAllocation).setRecivedPay(_roundID,_receipt);
+    }
+    
+    /**
      * @dev Set the allocation pre-sale limit.
      *
      * @param _roundID The ID of the presale round.
@@ -356,8 +433,8 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
             require(false, "ResetAfterTimeExpires");
             // revert Errors.ResetAfterTimeExpires();
         }
-        MetaTxLib.validateAddProposalSignature(signature, projectVote);
-        address recoveredSigner = MetaTxLib.recoveredSigner(projectVote, signature.deadline, botSignature);
+        MetaTxLibUpgradeable.validateAddProposalSignature(signature, projectVote);
+        address recoveredSigner = MetaTxLibUpgradeable.recoveredSigner(projectVote, signature.deadline, botSignature);
         
         if(recoveredSigner == address(0) || !hasRole(ROLE_BOT, recoveredSigner)){
             require(false, "BotSignatureInvalid");
@@ -370,7 +447,7 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         address _projectAddr = project(projectVote.serialNo, projectVote.projectAddr);
 
         // If the vote is greater than or equal to 50%, the application is successful
-        if(projectVote.voteRatio >= 50){
+        if(projectVote.voteRatio >= 5000){
             StorageLib.isProject()[_projectAddr] = true;
             _grantRole(PROJECT_ROLE, _projectAddr);
             _grantRole(PROJECT_OPERATOR_ROLE, projectVote.projectAddr);
@@ -396,7 +473,7 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         address targetAllocation = _allocation(roundID);
         __checkAlloction(targetAllocation);
         uint256 voteCount = IAllocation(targetAllocation).getVoteNum(roundID, msg.sender);
-        MetaTxLib.validateVoteRefundSignature(signature, roundID, serialNo, targetAllocation, voteCount);
+        MetaTxLibUpgradeable.validateVoteRefundSignature(signature, roundID, serialNo, targetAllocation, voteCount);
         IAllocation(targetAllocation).refundFundraisingVote(roundID, msg.sender);
     }
 
@@ -442,23 +519,32 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
      */
     function apNftMint(Types.EIP712Signature calldata signature, uint256 roundID) public nonReentrant {
         address targetAllocation = _allocation(roundID);
+        console.log("apNftMint: %s", targetAllocation);
         if(targetAllocation == address(0)){
             targetAllocation = getPlatformAllocation();
+            console.log("apNftMint getPlatformAllocation: %s", targetAllocation);
         }
         __checkAlloction(targetAllocation);
         
         address apnft = IAllocation(targetAllocation).getApNFTTarget(roundID);
+        
+        console.log("apnft: %s", apnft);
         if(apnft == address(0)) {
             require(false, "ApNftDoesNotExist");
             // revert Errors.ApNftDoesNotExist();
         }
         
         uint256 voteEndTime =  IAllocation(targetAllocation).getVoteEndTime(roundID);
+
+        console.log("apnft     voteEndTime: %s", voteEndTime);
+        console.log("apnft block timestamp: %s", block.timestamp);
         if(voteEndTime > 0 && voteEndTime >= block.timestamp){
             require(false, "MinNotStarted");
             // revert Errors.MinNotStarted();
         }
         uint256 mintEndTime =  IAllocation(targetAllocation).getMintEndTime(roundID);
+
+        console.log("apnft     mintEndTime: %s", mintEndTime);
         if(mintEndTime > 0 && mintEndTime <= block.timestamp){
             require(false, "MintHasEnded");
             // revert Errors.MintHasEnded();
@@ -466,12 +552,16 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         
         address user = msg.sender;
         uint256 totalPreSaleNum = IAllocation(targetAllocation).getPreSaleNumByUser(user, roundID);
+        
+        console.log("apnft totalPreSaleNum: %s", totalPreSaleNum);
         if(totalPreSaleNum == 0) {
             require(false, "PreSaleDataDoseNotExist");
             // revert Errors.PreSaleDataDoseNotExist();
         }
         uint256 lastMintNum;
-        uint256 mintNum = IAllocation(targetAllocation).getMintNum(user);
+        uint256 mintNum = IAllocation(targetAllocation).getMintNum(user, roundID);
+
+        console.log("apnft mintNum: %s", mintNum);
         if(totalPreSaleNum > mintNum){
             lastMintNum = totalPreSaleNum.sub(mintNum);
         } else {
@@ -480,15 +570,20 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
         if(lastMintNum > maxMintLimit) {
             lastMintNum = maxMintLimit;
         }
+
+        console.log("apnft1");
         // valide sign
-        MetaTxLib.validateApNftMintSignature(signature, roundID, targetAllocation, lastMintNum);
+        MetaTxLibUpgradeable.validateApNftMintSignature(signature, roundID, targetAllocation, lastMintNum);
+
+        console.log("apnft2");
 
         // function batchMint(address _to, uint256 _amount) external;
         IApNFT(apnft).batchMint(user, lastMintNum);
+        console.log("apnft batchMint: %s", apnft);
         // set NFT-mint num
         mintNum = mintNum.add(lastMintNum);
-        IAllocation(targetAllocation).setMintNum(user, mintNum); 
-        emit Events.ApNFTMint(apnft, user, totalPreSaleNum, mintNum, block.timestamp);      
+        IAllocation(targetAllocation).setMintNum(roundID, user, mintNum); 
+        emit Events.ApNFTMint(roundID, apnft, user, totalPreSaleNum, mintNum, block.timestamp);      
 
     }
 
@@ -572,7 +667,7 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
      */
     function setContractRole(address targetContract, bytes32 role, address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
        //  function grantRole(bytes32 role, address account) 
-       AccessControl(targetContract).grantRole(role, account);
+       AccessControlUpgradeable(targetContract).grantRole(role, account);
     }
     /**
      * @dev Set the apnft vesting contract address.
@@ -623,6 +718,16 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
     }
 
     /**
+     * @dev Set the allocation admin address.
+     *
+     * @param newApNFT The new allocation address to set.
+     */
+    function setPlatformApNFT(address newApNFT) public onlyRole(DEFAULT_ADMIN_ROLE){
+        StorageLib.setPlatformApNFT(newApNFT);
+    }
+
+
+    /**
      * @dev Set the allocation max mint limit.
      *
      * @param _maxMintlimit Max mint limit
@@ -632,15 +737,15 @@ contract CoreskyHub is AccessControl, ReentrancyGuard, CoreHubStorage {
     }
 
     function getDomainSeparator() external view virtual returns (bytes32) {
-        return MetaTxLib.calculateDomainSeparator();
+        return MetaTxLibUpgradeable.calculateDomainSeparator();
     }
 
     
     function incrementNonce(uint8 increment) external {
-        MetaTxLib.incrementNonce(increment);
+        MetaTxLibUpgradeable.incrementNonce(increment);
     }
 
     function nonce() public view returns (uint256){
-        return MetaTxLib.getNonce(msg.sender);
+        return MetaTxLibUpgradeable.getNonce(msg.sender);
     }
 }

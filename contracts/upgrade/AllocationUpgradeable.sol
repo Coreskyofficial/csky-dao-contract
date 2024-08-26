@@ -4,20 +4,21 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "../interfaces/IApNFT.sol";
 import "../libraries/Types.sol";
 
 import "hardhat/console.sol";
 
-contract Allocation is AccessControl, ReentrancyGuard {
+contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     using SafeMath for uint256;
     using Address for address;
     using SafeERC20 for IERC20;
-        
+
     // BASE PERCENT
     uint public constant BASE_PERCENT = 100;
     // Inverse basis point
@@ -26,18 +27,19 @@ contract Allocation is AccessControl, ReentrancyGuard {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant ASSET_ROLE = keccak256("ASSET_ROLE");
 
+    bool private _initialized;
     // true or false auto mint apNFT
     bool public autoMintApNFT;
 
     // Allocation max create limit
-    uint8 public maxAlloctionLimit = 2;
+    uint8 public maxAlloctionLimit;
     // Allcotion roundIDs
     uint256[] public roundIDs;
     // groupId => uint256[]
     mapping (uint256 =>  uint256[])  public groupRoundIDs;
 
-    // Recive payment address of the project
-    address public recivedPay;
+    // roundId => Recive payment address of the project
+    mapping(uint256 => address) public recivedPay;
     // RoundID=> serialNo => times
     mapping(uint256 => mapping(uint256 => uint256)) public recivePayTimes;
     // RoundID=>SendFundraisingLog[]
@@ -79,10 +81,9 @@ contract Allocation is AccessControl, ReentrancyGuard {
     // roundID => Types.Vote
     mapping(uint256 => Types.Vote) private refundVote;
 
-
     /// Mint use
-    // MintNFT user=> mintNum
-    mapping(address => uint256) private mintedNum;
+    // userPreSaleNum roundID => (user => mintNum)
+    mapping(uint256 => mapping(address=>uint256)) private mintedNum;
     // user=> (presaleID => presaleNum)
     mapping(address => mapping(uint256 => uint256)) private preSaledNum;
     // roundID=> FundraisingStatus:(true/false)
@@ -95,7 +96,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
 
     event PreSaleClaimed(uint256 indexed roundID, address indexed sender, uint256 indexed preSaleID, uint256 preSaleNum, uint256 timestamp);
 
-    event ApNFTMint(uint256 indexed apNftNo, address indexed apNft, address owner, uint256 mintNum, uint256 timestamp);
+    event ApNFTMint(uint256 indexed roundID, uint256 indexed apNftNo, address indexed apNft, address owner, uint256 mintNum, uint256 timestamp);
 
     event Refund(uint256 indexed roundID, address indexed recipient, uint256 amount, uint256 timestamp);
 
@@ -111,7 +112,20 @@ contract Allocation is AccessControl, ReentrancyGuard {
 
     event PresaleRefund(uint256 roundID);
     
+    /**
+     * @dev initialize the contract by setting a `admin_` and a `operator_` to the Alloction.
+     */
+    function initialize(address admin_, address operator_) external initializer{
+        console.log("initialize admin_: %s, operator_: %s", admin_, operator_ );
+        require(!_initialized, "Initialized");
 
+        __ReentrancyGuard_init();
+        _setupRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(OPERATOR_ROLE, operator_);
+        _initialized = true;
+        maxAlloctionLimit = 2;
+    }
+    
     receive() external payable {}
 
     /**
@@ -138,12 +152,6 @@ contract Allocation is AccessControl, ReentrancyGuard {
         _;
     }
 
-    constructor(address admin, address operator) {
-        _setupRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(OPERATOR_ROLE, operator);
-    }
-
-
     /**
      * @dev Initializes a new presale round by project.
      * This function sets up the details for a new launchpad project with a specified ID. 
@@ -160,6 +168,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
      * @param _groupID The ID of the presale group to set up.
      * @param _roundID The ID of the presale round to set up.
      * @param _target The target address of the presale.
+     * @param _receipt The receipt address where funds will be sent.
      * @param _payment The address of the ERC20 token to be used for payments (if any).
      * @param _nftPrice The price of each NFT in the presale.
      * @param _startTime The start time for the presale round.
@@ -168,11 +177,12 @@ contract Allocation is AccessControl, ReentrancyGuard {
      * @param _mintEndTime The mint end time for the presale round.
      * @param _totalQuantity The total quantity for the presale round.
      */
-    function allocation(uint256 _groupID, uint256 _roundID, address _target, address _payment, uint256 _nftPrice, uint256 _startTime, uint256 _endTime, uint256 _voteEndTime, uint256 _mintEndTime, uint256 _totalQuantity) public onlyRole(OPERATOR_ROLE) {
+    function allocation(uint256 _groupID, uint256 _roundID, address _target, address _receipt, address _payment, uint256 _nftPrice, uint256 _startTime, uint256 _endTime, uint256 _voteEndTime, uint256 _mintEndTime, uint256 _totalQuantity) public onlyRole(OPERATOR_ROLE) {
 
         require(maxAlloctionLimit >= groupRoundIDs[_groupID].length, "Project limit of 2");
         require(_endTime > block.timestamp, "Invalid time");
         require(_target != address(0), "Invalid target");
+        require(_receipt != address(0), "Invalid receipt");
         require(_nftPrice > 0, "nftPrice > 0");
 
         // create allocation
@@ -194,6 +204,9 @@ contract Allocation is AccessControl, ReentrancyGuard {
         mintEndTime[_roundID] = _mintEndTime;
         totalQuantity[_roundID] = _totalQuantity;
         allowOversold[_roundID] = (_totalQuantity > 0);
+        
+        // roundId => Recive payment address of the project
+        recivedPay[_roundID] = _receipt;
         
         fundraisingStatus[_roundID] = Types.FundraisingStatus.Success;
         emit HardtopQuantity(_roundID, _totalQuantity);
@@ -230,8 +243,8 @@ contract Allocation is AccessControl, ReentrancyGuard {
         Types.Project storage project = round[_roundID];
         require(project.target == address(0), "Already setting");
 
-        project.target = _target;
-        project.receipt = _receipt;
+        project.target = _target;        
+        project.receipt = payable(this);
         project.payment = _payment;
         project.nftPrice = _nftPrice;
         project.startTime = _startTime;
@@ -244,6 +257,10 @@ contract Allocation is AccessControl, ReentrancyGuard {
         mintEndTime[_roundID] = _mintEndTime;
         
         fundraisingStatus[_roundID] = Types.FundraisingStatus.Success;
+        
+        // roundId => Recive payment address of the project
+        recivedPay[_roundID] = _receipt;
+        
 
     }
 
@@ -337,7 +354,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
 
 
         if(autoMintApNFT && project.target != address(0)){
-            apNftMint(project.target, preSaleID);
+            apNftMint(roundID, project.target, preSaleID);
         }
 
         emit PreSaleClaimed(roundID, msg.sender, preSaleID, preSaleNum, block.timestamp);
@@ -385,7 +402,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
         emit RefundFundraisingVote(roundID, voteUser, block.timestamp);
     }
 
-    function apNftMint(address target, uint256 preSaleID) internal virtual {
+    function apNftMint(uint256 roundID, address target, uint256 preSaleID) internal virtual {
         address user = msg.sender;
         uint256 preSaleNum =  getPreSaleNum(user,preSaleID);
         require(preSaleNum > 0, "Pre sale quantity is 0");
@@ -394,9 +411,9 @@ contract Allocation is AccessControl, ReentrancyGuard {
         // function batchMint(address _to, uint256 _amount) external;
         IApNFT(target).batchMint(user, preSaleNum);
         
-        mintedNum[user] = mintedNum[user] + preSaleNum;
+        mintedNum[roundID][user] = mintedNum[roundID][user] + preSaleNum;
 
-        emit ApNFTMint(preSaleID, target, msg.sender, preSaleNum, block.timestamp);
+        emit ApNFTMint(roundID, preSaleID, target, msg.sender, preSaleNum, block.timestamp);
         
     }
 
@@ -512,7 +529,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
         require(roundID > 0, "project is empty");
         require(_serialNo > 0, "serialNo is empty");
         require(_amount > 0, "The amount must be greater than 0");
-        require(recivedPay != address(0), "project pay address is empty");
+        require(recivedPay[roundID] != address(0), "project pay address is empty");
         // Verify time
         if(fundraisingStatus[roundID] != Types.FundraisingStatus.Success){
             return;
@@ -534,7 +551,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
                 receiveAmount = SafeMath.sub(receiveAmount, referrerFee);
                 TransferETH(payable(feeTo), referrerFee);
             }
-            TransferETH(payable(recivedPay), receiveAmount);
+            TransferETH(payable(recivedPay[roundID]), receiveAmount);
         } else {
             require(msg.value == 0, "Needn't pay mainnet token");
             // Iterate over each recipient and transfer the corresponding amount of tokens
@@ -546,13 +563,13 @@ contract Allocation is AccessControl, ReentrancyGuard {
                 receiveAmount = SafeMath.sub(receiveAmount, referrerFee);
                 TT(project.payment, payable(feeTo), referrerFee);
             }
-            TT(project.payment, payable(recivedPay), receiveAmount);
+            TT(project.payment, payable(recivedPay[roundID]), receiveAmount);
         }
 
         sendFundraisings[roundID].push(Types.SendFundraisingLog(block.timestamp, _amount, receiveAmount));
         recivePayTimes[roundID][_serialNo] = sendFundraisings[roundID].length;
 
-        emit SendFundraising(roundID, _serialNo, recivedPay, receiveAmount, referrerFee, block.timestamp);
+        emit SendFundraising(roundID, _serialNo, recivedPay[roundID], receiveAmount, referrerFee, block.timestamp);
     }
 
     function getFundraisingLength(uint256 roundID) public view returns (uint256){
@@ -617,7 +634,7 @@ contract Allocation is AccessControl, ReentrancyGuard {
             voteEndTime[_roundID],
             mintEndTime[_roundID],
             issueToken[_roundID],
-            recivedPay,
+            recivedPay[_roundID],
             Types.AllocStatus(
                 uint8(fundraisingStatus[_roundID]),
                 isAllowOversold(_roundID),
@@ -651,8 +668,8 @@ contract Allocation is AccessControl, ReentrancyGuard {
     }
 
     // Returns project preSale minted num by the user.
-    function getMintNum(address user) public view returns (uint256){
-        return mintedNum[user];
+    function getMintNum(address user, uint256 roundID) public view returns (uint256){
+        return mintedNum[roundID][user];
     }
 
     /**
@@ -817,8 +834,8 @@ contract Allocation is AccessControl, ReentrancyGuard {
     }
 
     // Set project NFT mint quantity
-    function setMintNum(address user, uint256 preSaleNum) public onlyRole(OPERATOR_ROLE) {
-        mintedNum[user] = preSaleNum;
+    function setMintNum(uint256 _roundID,address user, uint256 preSaleNum) public onlyRole(OPERATOR_ROLE) {
+        mintedNum[_roundID][user] = preSaleNum;
     }
     
     // Set Project - Payment Acceptance Address
@@ -887,8 +904,8 @@ contract Allocation is AccessControl, ReentrancyGuard {
     }
 
     // Set project - recived pay address
-    function setRecivedPay(address _newRecivedPay) public onlyRole(OPERATOR_ROLE) {
-        recivedPay = _newRecivedPay;
+    function setRecivedPay(uint256 _roundID, address _newRecivedPay) public onlyRole(OPERATOR_ROLE) {
+        recivedPay[_roundID] = _newRecivedPay;
     }
 
     function TransferETH(address payable _receiver, uint256 _Amount) internal {

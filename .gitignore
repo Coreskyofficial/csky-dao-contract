@@ -22,3 +22,5 @@ newnft*
 MerkleDistributorPFP*
 test/merkle/
 CoreskyHubRevert.sol
+mock/
+test-EIP712.js

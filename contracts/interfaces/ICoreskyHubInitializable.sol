@@ -16,13 +16,6 @@ interface ICoreskyHubInitializable {
      * @dev This is assuming a proxy pattern is implemented.
      * @custom:permissions Callable once.
      *
-     * @param admin The name of the Profile NFT.
-     * @param operator The symbol of the Profile NFT.
-     * @param bot The governance address to set.
      */
-    function initialize(
-        address admin, 
-        address operator,
-        address bot
-    ) external;
+    function initialize(address admin_, address operator_, address bot_) external;
 }

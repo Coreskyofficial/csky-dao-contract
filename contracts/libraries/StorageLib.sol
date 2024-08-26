@@ -37,7 +37,20 @@ library StorageLib {
 
     
     uint256 constant PLATFORM_ALLOCATION_SLOT = 19; 
+    uint256 constant PLATFORM_APNFT_SLOT = 20; 
     
+
+    function getPlatformApNFT() internal view returns (address _platformApNFT) {
+        assembly {
+            _platformApNFT := sload(PLATFORM_APNFT_SLOT)
+        }
+    }
+
+    function setPlatformApNFT(address newPlatformApNFT) internal {
+        assembly {
+            sstore(PLATFORM_APNFT_SLOT, newPlatformApNFT)
+        }
+    }
 
     function getPlatformAllocation() internal view returns (address _platformAllocation) {
         assembly {

@@ -2,7 +2,8 @@
 
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/BitMaps.sol";
@@ -12,7 +13,7 @@ import "hardhat/console.sol";
 
 
 error AlreadyDroped();
-contract CoreskyAirDrop is AccessControl {
+contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
     using Address for address;
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
@@ -46,9 +47,20 @@ contract CoreskyAirDrop is AccessControl {
     // Airdrop token event
     event AirDropToken(address indexed token, address indexed to, uint256 indexed amount, uint256 time, uint256 searilNo, uint256 batchNo);
 
-    constructor(address admin, address operator) {
-        _setupRole(DEFAULT_ADMIN_ROLE, admin);
-        _setupRole(OPERATOR_ROLE, operator);
+
+    /**
+     * @dev Initializes the contract by setting a `admin_` and a `operator_` to the Alloction.
+     */
+    function initialize(address admin_, address operator_) public initializer {
+        __CoreskyAirDrop_init(admin_, operator_);
+    }
+
+    /**
+     * @dev Initializes the contract by setting a `admin_` and a `operator_` to the Alloction.
+     */
+    function __CoreskyAirDrop_init(address admin_, address operator_) internal onlyInitializing {
+        _setupRole(DEFAULT_ADMIN_ROLE, admin_);
+        _setupRole(OPERATOR_ROLE, operator_);
     }
 
     /**

@@ -19,7 +19,7 @@ library Events {
 
     event AllocationCreated(uint256 indexed roundID, address indexed allocation, address owner, uint256 timestamp);
 
-    event ApNFTMint(address indexed apNft, address owner, uint256 preSaleNum, uint256 mintNum, uint256 timestamp);
+    event ApNFTMint(uint256 indexed roundID, address indexed apNft, address owner, uint256 preSaleNum, uint256 mintNum, uint256 timestamp);
     
     event ApplyProjectVote(uint256 indexed _groupID, address indexed _projectAddr, address indexed project, uint256 timestamp);
 

@@ -2,13 +2,17 @@
 
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract AssetPackagedNFT is ERC721, AccessControl {
+import "hardhat/console.sol";
+
+contract AssetPackagedNFTUpgradeable is Initializable, ERC721Upgradeable, AccessControlUpgradeable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
+    bool private _initialized;
     // auto mint tokenid = 1000
     uint256 private BATCH_TOKEN_INC_INDEX = 0;
 
@@ -30,17 +34,23 @@ contract AssetPackagedNFT is ERC721, AccessControl {
      */
     string public baseUri;
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        string memory _baseUri
-    ) ERC721(_name, _symbol) {
+
+    /**
+     * @dev Initializes the contract by setting `name_`, `symbol_` , `baseUri_` to the token collection.
+     */
+    function initialize(
+        string memory name_,
+        string memory symbol_,
+        string memory baseUri_
+    ) external initializer{
+         __ERC721_init(name_, symbol_);
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(MINTER_ROLE, _msgSender());
         _setupRole(BURNER_ROLE, _msgSender());
-        baseUri = _baseUri;
+        baseUri = baseUri_;
         maxTokenID = BATCH_TOKEN_INC_INDEX;
     }
+
 
     function setBatchStartTokenId(uint256 startTokenId)
         external
@@ -113,7 +123,7 @@ contract AssetPackagedNFT is ERC721, AccessControl {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721, AccessControl)
+        override(ERC721Upgradeable, AccessControlUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);

@@ -29,7 +29,7 @@ abstract contract CoreHubStorage {
     // Project party votes - restart after 7 days
     uint256 public constant VOTE_EXPIRE_TIME = 604800;
 
-    uint256 public maxMintLimit = 50;
+    uint256 public maxMintLimit;
 
     // signature => exsist: 0 or 1 
     mapping(bytes32 =>uint8) public signMap;
@@ -128,7 +128,11 @@ abstract contract CoreHubStorage {
     function getPlatformAllocation() public view returns (address) {
         return StorageLib.getPlatformAllocation();
     }
-
+    // PlatformApNFT
+    // address public platformApNFT; // Slot#20
+    function getPlatformApNFT() public view returns (address) {
+        return StorageLib.getPlatformApNFT();
+    }
 
 
 }

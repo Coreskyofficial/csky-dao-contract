@@ -6,7 +6,35 @@ interface IAllocation {
   
    
     ////////////////////////////////Function set//////////////////////////////////////
+    function initialize(address admin_, address operator_) external;
 
+    /**
+     * @dev Initializes a new presale round by project.
+     * This function sets up the details for a new launchpad project with a specified ID. 
+     * It requires several parameters:
+     * - The target address of the presale.
+     * - The receipt address where funds will be sent.
+     * - The address of the ERC20 token to be used for payments (if any).
+     * - The price of each NFT in the presale.
+     * - The start and end times for the presale round.
+     * - Maximum number of create alloctoin by the project.
+     *
+     * Note: This function can only be called by an account with the `OPERATOR_ROLE`.
+     *
+     * @param _groupID The ID of the presale group to set up.
+     * @param _roundID The ID of the presale round to set up.
+     * @param _target The target address of the presale.
+     * @param _payment The address of the ERC20 token to be used for payments (if any).
+     * @param _nftPrice The price of each NFT in the presale.
+     * @param _startTime The start time for the presale round.
+     * @param _endTime The end time for the presale round.
+     * @param _voteEndTime The vote end time for the presale round.
+     * @param _mintEndTime The mint end time for the presale round.
+     * @param _totalQuantity The total quantity for the presale round.
+     */
+    function allocation(uint256 _groupID, uint256 _roundID, address _target, address _payment, uint256 _nftPrice, uint256 _startTime, uint256 _endTime, uint256 _voteEndTime, uint256 _mintEndTime, uint256 _totalQuantity) external;
+    // Set project - recived pay address
+    function setRecivedPay(uint256 _roundID, address _newRecivedPay)  external;
     /**
      * @dev Executes a function csetTotalQuantity contract. If the total number is greater than 0, oversold is allowed
      * @param _roundID project Id
@@ -14,7 +42,7 @@ interface IAllocation {
      */
     function setTotalQuantity(uint256 _roundID, uint256 _totalQuantity) external;
     // Set project NFT mint quantity
-    function setMintNum(address _user, uint256 _mintNum) external;
+    function setMintNum(uint256 _roundID, address _user, uint256 _mintNum) external;
     // Set up automatic Mint NFT to the user's address after pre-sale of the project
     function setAutoMint(bool _autoMint) external;
     // set project nft target by the roundID.
@@ -33,6 +61,8 @@ interface IAllocation {
     function setIssueToken(uint256 _roundID,  address _issueToken) external; 
     // Set project funding handling fees
     function setFee(uint256 _fee) external;
+    // Set project funding handling feeTo
+    function setFeeTo(address _feeTo) external;
     // Project pause
     function pause(uint256 _roundID) external;
     // Project suspension and resumption
@@ -55,7 +85,7 @@ interface IAllocation {
     // Returns project preSale num by the _user and _ronudID.
     function getPreSaleNumByUser(address _user, uint256 _roundID) external view returns (uint256);
     // Returns project preSale minted num by the _user.
-    function getMintNum(address _user) external view returns (uint256);
+    function getMintNum(address _user, uint256 _roundID) external view returns (uint256);
     // Returns project voteEndTime num by the _roundID.
     function getVoteEndTime(uint256 _roundID) external view returns (uint256);
     // Returns project mintEndTime num by the _roundID.

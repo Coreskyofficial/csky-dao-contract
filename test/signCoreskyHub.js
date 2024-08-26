@@ -23,8 +23,8 @@ const EIP712_DOMAIN_VERSION = "2";
 const EIP712_DOMAIN_VERSION_HASH = keccak256(toUtf8Bytes(EIP712_DOMAIN_VERSION));
 const EIP1271_MAGIC_VALUE = 0x1626ba7e;
 
-console.log("EIP712_DOMAIN_VERSION_HASH1", EIP712_DOMAIN_VERSION_HASH);
-console.log("EIP712_DOMAIN_VERSION_HASH2", ethUtil.bufferToHex(ethUtil.keccakFromString(EIP712_DOMAIN_VERSION)));
+// console.log("EIP712_DOMAIN_VERSION_HASH1", EIP712_DOMAIN_VERSION_HASH);
+// console.log("EIP712_DOMAIN_VERSION_HASH2", ethUtil.bufferToHex(ethUtil.keccakFromString(EIP712_DOMAIN_VERSION)));
 
 const typedData = {
   types: {

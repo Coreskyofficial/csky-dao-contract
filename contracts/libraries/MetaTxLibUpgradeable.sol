@@ -21,7 +21,7 @@ import "hardhat/console.sol";
  *
  * @dev User nonces are incremented from this library as well.
  */
-library MetaTxLib {
+library MetaTxLibUpgradeable {
     
     using ECDSA for bytes32;
     using ECDSA for bytes;
@@ -50,7 +50,7 @@ library MetaTxLib {
     }
 
     function getNonce(address signer)
-        external view
+        internal view
         returns (uint256)
     {
         return StorageLib.nonces()[signer];
@@ -67,7 +67,7 @@ library MetaTxLib {
         uint256 opposeCount,
         uint256 voteRatio,
         uint256 expireTime
-    ) external view returns (bool){
+    ) internal view returns (bool){
         bytes memory input = abi.encode(
                     Typehash.ADD_PROPOSAL,
                     serialNo,
@@ -98,7 +98,7 @@ library MetaTxLib {
         uint256 serialNo,
         address voteAddr,
         uint256 voteCount
-    ) external {
+    ) internal {
         uint256 nonce = _getNonceIncrementAndEmitEvent(signature.signer);
         _validateRecoveredAddress(
             _calculateDigest(
@@ -122,7 +122,7 @@ library MetaTxLib {
         uint256 serialNo,
         address voteAddr,
         uint256 voteCount
-    ) external {
+    ) internal {
         uint256 nonce = _getNonceIncrementAndEmitEvent(signature.signer);
         _validateRecoveredAddress(
             _calculateDigest(
@@ -147,7 +147,7 @@ library MetaTxLib {
         uint256 serialNo,
         address voteAddr,
         uint256 voteCount
-    ) external {
+    ) internal {
         uint256 nonce = _getNonceIncrementAndEmitEvent(signature.signer);
         console.log("validateVoteRefundSignature: nonce:%s ", nonce);
         _validateRecoveredAddress(
@@ -173,7 +173,7 @@ library MetaTxLib {
         uint256 roundID,
         address allocationAddr,
         uint256 mintNum
-    ) external {
+    ) internal {
         console.log("validateApNftMintSignature: roundID:%s, mintNum: %s ", roundID, mintNum);
         uint256 nonce = _getNonceIncrementAndEmitEvent(signature.signer);
         console.log("validateApNftMintSignature: nonce:%s ", nonce);
@@ -197,8 +197,8 @@ library MetaTxLib {
 
     function validateAddProposalSignature(
         Types.EIP712Signature calldata signature,
-        Types.Proposal calldata proposal
-    ) external {
+        Types.Proposal memory proposal
+    ) internal {
         uint256 nonce = _getNonceIncrementAndEmitEvent(signature.signer);
         _validateRecoveredAddress(
             _calculateDigest(
@@ -230,7 +230,7 @@ library MetaTxLib {
         string memory _baseUri,
         uint256 deadline,
         bytes memory signature
-    ) external view returns (address) {
+    ) internal view returns (address) {
         require(block.timestamp < deadline, "The sign deadline error");
         bytes32 messageHash = keccak256(
             abi.encodePacked(
@@ -252,7 +252,7 @@ library MetaTxLib {
         Types.Proposal calldata proposal,
         uint256 deadline,
         bytes memory signature
-    ) external view returns (address) {
+    ) internal view returns (address) {
         require(block.timestamp < deadline, "The sign deadline error");
         bytes32 messageHash = keccak256(
             abi.encodePacked(
@@ -273,7 +273,7 @@ library MetaTxLib {
         Types.EIP712Signature calldata signature,
         uint256 serialNo,
         string calldata metadataURI
-    ) external {
+    ) internal {
         _validateRecoveredAddress(
             _calculateDigest(
                 keccak256(
@@ -291,7 +291,7 @@ library MetaTxLib {
     }
 
     /// @dev This function is used to invalidate signatures by incrementing the nonce
-    function incrementNonce(uint8 increment) external {
+    function incrementNonce(uint8 increment) internal {
         uint256 currentNonce = StorageLib.nonces()[msg.sender];
         StorageLib.nonces()[msg.sender] = currentNonce + increment;
         emit Events.NonceUpdated(

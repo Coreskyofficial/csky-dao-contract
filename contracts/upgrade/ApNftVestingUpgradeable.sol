@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Sources flattened with hardhat v2.12.6 https://hardhat.org
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 pragma solidity ^0.8.0;
 
 
-contract ApNftVesting is  Pausable, AccessControl
+contract ApNftVestingUpgradeable is Initializable, PausableUpgradeable, AccessControlUpgradeable
 {
     using Address for address;
 
@@ -47,15 +48,23 @@ contract ApNftVesting is  Pausable, AccessControl
         _;
     }
 
-    constructor(
-        address admin,
-        address receivedAddress
-    ) {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(OPERATOR_ROLE, admin);
-        apNFTReceivedAddress = receivedAddress;
 
+    /**
+     * @dev Initializes the contract by setting a `admin_` and a `receivedAddress_` to the Alloction.
+     */
+    function initialize(address admin_, address receivedAddress_) public initializer {
+        __ApNftVesting_init(admin_, receivedAddress_);
     }
+
+    /**
+     * @dev Initializes the contract by setting a `admin_` and a `receivedAddress_` to the Alloction.
+     */
+    function __ApNftVesting_init(address admin_, address receivedAddress_) internal onlyInitializing {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(OPERATOR_ROLE, admin_);
+        apNFTReceivedAddress = receivedAddress_;
+    }
+
 
     receive() external payable {}
 
@@ -81,7 +90,7 @@ contract ApNftVesting is  Pausable, AccessControl
     function transfer(uint256 _batchNo,address _apNFTaddess, uint256 _tokenID,uint256 _serialNo) public whenNotPaused() onlyNFT(_apNFTaddess) {
         require(_tokenID > 0, "tokenID can not be zero");
         require(apNFTReceivedAddress !=address(0), "received address is null");
-        IERC721(_apNFTaddess).transferFrom(msg.sender, apNFTReceivedAddress, _tokenID);
+        IERC721Upgradeable(_apNFTaddess).transferFrom(msg.sender, apNFTReceivedAddress, _tokenID);
         emitApNftTransfer(_batchNo,_apNFTaddess, _tokenID, _serialNo);
     }
 

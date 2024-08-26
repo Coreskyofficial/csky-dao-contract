@@ -6,13 +6,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../libraries/Types.sol";
-import "../libraries/MetaTxLib.sol";
+import "../libraries/MetaTxLibUpgradeable.sol";
 
 import "hardhat/console.sol";
 
-contract VoteTool is AccessControl{
+contract VoteToolUpgradeable is Initializable, AccessControlUpgradeable {
 
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -55,14 +56,28 @@ contract VoteTool is AccessControl{
     // oppose's user => proposal => count
     mapping(address => mapping(uint256 => uint256)) private opposeVoteMap;
 
+    // signature => exsist: 0 or 1 
+    mapping(bytes32 =>uint8) public signMap;
+
     
 
     event AddProposal(uint256 indexed proposal, address indexed from, uint256 expireTime);
     event Vote(address indexed from, uint256 indexed proposal, uint256 count, string voteType);
 
-    constructor(address admin, address operator) {
-        _setupRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(OPERATOR_ROLE, operator);
+
+   /**
+     * @dev Initializes the contract by setting a `admin_` and a `operator_` to the Alloction.
+     */
+    function initialize(address admin_, address operator_) external initializer {
+        __VoteTool_init(admin_, operator_);
+    }
+
+    /**
+     * @dev Initializes the contract by setting a `admin_` and a `operator_` to the Alloction.
+     */
+    function __VoteTool_init(address admin_, address operator_) internal onlyInitializing {
+        _setupRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(OPERATOR_ROLE, operator_);
         pay = PayType.None;
     }
 
@@ -81,6 +96,13 @@ contract VoteTool is AccessControl{
         require(serialNo > 0, "proposal empty");
         require(proposalMap[serialNo].serialNo == 0, "proposal exists");
 
+        // sign verify
+        bytes32 signHash = keccak256(abi.encodePacked(signature.r, signature.s, signature.v));
+        if(signMap[signHash] > 0){
+            require(false, "ApplyProjectVoteAlreadyExists");
+            // revert Errors.ApplyProjectVoteAlreadyExists();
+        }
+
         Types.Proposal memory vote = Types.Proposal(
                         serialNo,
                         address(0),
@@ -89,8 +111,9 @@ contract VoteTool is AccessControl{
                         0,
                         expireTime,
                         0);
-        MetaTxLib.validateAddProposalSignature(signature, vote);
+        MetaTxLibUpgradeable.validateAddProposalSignature(signature, vote);
 
+        signMap[signHash] = 1;
         proposals.push(serialNo);
         
         proposalMap[serialNo] = vote;
@@ -106,8 +129,14 @@ contract VoteTool is AccessControl{
 
         require(p.serialNo > 0, "proposal not exists");
         require(p.expireTime >= block.timestamp, "proposal expired");
+        // sign verify
+        bytes32 signHash = keccak256(abi.encodePacked(signature.r, signature.s, signature.v));
+        if(signMap[signHash] > 0){
+            require(false, "ApplyProjectVoteAlreadyExists");
+            // revert Errors.ApplyProjectVoteAlreadyExists();
+        }
 
-        MetaTxLib.validateVoteSupportSignature(signature, serialNo, msg.sender, voteCount);
+        MetaTxLibUpgradeable.validateVoteSupportSignature(signature, serialNo, msg.sender, voteCount);
 
         uint256 userNum = supportVoteMap[msg.sender][serialNo];
 
@@ -137,6 +166,7 @@ contract VoteTool is AccessControl{
         p.supportCount = p.supportCount.add(voteCount);
         p.voteRatio = SafeMath.div(SafeMath.mul(p.supportCount, BASE_PERCENT), SafeMath.add(p.supportCount, p.opposeCount));
 
+        signMap[signHash] = 1;
         supportVoteMap[msg.sender][serialNo] = nextNum;
 
 
@@ -154,8 +184,14 @@ contract VoteTool is AccessControl{
 
         require(p.serialNo > 0, "proposal not exists");
         require(p.expireTime >= block.timestamp, "proposal expired");
+        // sign verify
+        bytes32 signHash = keccak256(abi.encodePacked(signature.r, signature.s, signature.v));
+        if(signMap[signHash] > 0){
+            require(false, "ApplyProjectVoteAlreadyExists");
+            // revert Errors.ApplyProjectVoteAlreadyExists();
+        }
 
-        MetaTxLib.validateVoteOpposeSignature(signature, _serialNo, msg.sender, _voteCount);
+        MetaTxLibUpgradeable.validateVoteOpposeSignature(signature, _serialNo, msg.sender, _voteCount);
 
         uint256 userNum = opposeVoteMap[msg.sender][_serialNo];
 
@@ -184,6 +220,7 @@ contract VoteTool is AccessControl{
         p.opposeCount = p.opposeCount.add(_voteCount);
         p.voteRatio = SafeMath.div(SafeMath.mul(p.supportCount, BASE_PERCENT), SafeMath.add(p.supportCount, p.opposeCount));
 
+        signMap[signHash] = 1;
         opposeVoteMap[msg.sender][_serialNo] = nextNum;
 
         emit Vote(msg.sender, _serialNo, _voteCount, "oppose");
@@ -289,7 +326,7 @@ contract VoteTool is AccessControl{
     }
 
     function nonce() public view returns (uint256){
-        return MetaTxLib.getNonce(msg.sender);
+        return MetaTxLibUpgradeable.getNonce(msg.sender);
     }
 
         /*
