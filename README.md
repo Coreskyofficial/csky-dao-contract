@@ -4,15 +4,57 @@ A standard project build in hardhat is as follow:
 
 ```sh
 contracts/
+│   CoreskyHubInitializable.sol
+│
+├───base
+│       CoreHubStorage.sol
+│
+├───interfaces
+│       IAllocation.sol
+│       IApNFT.sol
+│       ICoreskyAirDrop.sol
+│       ICoreskyHubInitializable.sol
+│
+├───libraries
+│       Errors.sol
+│       Events.sol
+│       MetaTxLibUpgradeable.sol
+│       StorageLib.sol
+│       Typehash.sol
+│       Types.sol
+│
+├───mock
+│       ERC20Mock.sol
+│       SendEther.sol
+│       TetherToken.sol
+│
+└───upgrade
+        AllocationUpgradeable.sol *
+        ApNftVestingUpgradeable.sol 
+        AssetPackagedNFTUpgradeable.sol 
+        CoreskyAirDropUpgradeable.sol *
+        CoreskyHubUpgradeable.sol *
+        VersionedInitializable.sol 
+        VoteToolUpgradeable.sol
 scripts/
 test/
 hardhat.config.js
 ```
-
 - palce fileds write in solidity in contracts
 - palce scripts files such as deploying contracts in scripts
 - palce testing scripts named with `contractName.test.js` in test
 - `hardhat.config.js` is config file of hardhat
+
+# Contract Intro
+
+- AllocationUpgradeable.sol  Allcotion contract includes pre-sale, Mint, voting, unlocking of raised funds, refund of pre-sale funds, and withdrawal functions.
+- ApNftVestingUpgradeable.sol  This is an asset package pledge contract.
+- AssetPackagedNFTUpgradeable.sol This is an asset package fundraising voucher, holding this voucher can receive tokens.
+- CoreskyAirDropUpgradeable.sol Asset package token airdrop contract, including automatic and manual methods.
+- CoreskyHubUpgradeable.sol The Coresky main contract includes business functions such as project party application for voting, creating Allocation projects, creating asset packages, fundraising voting, fundraising distribution, and fundraising refunds.
+- VersionedInitializable.sol Coresky main contract version number
+- VoteToolUpgradeable.sol Voting tools
+
 
 ### Configuration of hardhat
 
