@@ -54,7 +54,6 @@ module.exports = {
         ETH_PK_3,
         ETH_PK_4,
       ],
-      gas: 30000000,
     }
   },
   etherscan: {
