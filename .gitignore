@@ -24,3 +24,5 @@ test/merkle/
 CoreskyHubRevert.sol
 mock/
 test-EIP712.js
+scripts/*
+.openzeppelin

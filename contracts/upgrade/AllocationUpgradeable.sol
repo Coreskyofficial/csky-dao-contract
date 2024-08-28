@@ -672,6 +672,11 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         return mintedNum[roundID][user];
     }
 
+    // Returns project preSale minted num by the user.
+    function getMintInfo(address user, uint256 roundID) public view returns (uint256 preSaleNum, uint256 mintNum){
+        return (userPreSaleNum[roundID][user], mintedNum[roundID][user]);
+    }
+
     /**
      * @dev Executes a function call on another contract.
      * @param dest The address of the contract to call.
