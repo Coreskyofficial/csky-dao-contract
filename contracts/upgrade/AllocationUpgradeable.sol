@@ -26,6 +26,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant ASSET_ROLE = keccak256("ASSET_ROLE");
+    bytes32 public constant ALLOCATION_ASSET_ROLE = keccak256("ALLOCATION_ASSET_ROLE");
 
     bool private _initialized;
     // true or false auto mint apNFT
@@ -92,8 +93,18 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     
     // Refund roundID=> index
     mapping(uint256 => uint256) private refundIndex;
-        
 
+    // withdrawal
+    // roundID => to => amount
+    mapping(uint256=> mapping(address => uint256)) public withdrawalAllocationTo;
+    // roundID => WithdrawalAllocationTotalAmount
+    mapping(uint256=> uint256) public withdrawalAllocationTotalAmount;
+
+
+    event WithdrawalAllocation(uint256 indexed _roundID, address indexed _to, uint256 indexed _amount);
+
+    event Withdraw(address indexed _token, address indexed _to, uint256 indexed _amount);
+        
     event PreSaleClaimed(uint256 indexed roundID, address indexed sender, uint256 indexed preSaleID, uint256 preSaleNum, uint256 timestamp);
 
     event ApNFTMint(uint256 indexed roundID, uint256 indexed apNftNo, address indexed apNft, address owner, uint256 mintNum, uint256 timestamp);
@@ -922,13 +933,15 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     function TT(address _tokenAddress, address payable _receiver, uint256 _Amount) internal {
         console.log("TransferTT:%s, _Amount:%s",_receiver, _Amount);
         IERC20(_tokenAddress).safeTransfer(_receiver, _Amount);
-         console.log("TransferTT:%s, balanceOf:%s, Total:%s",_receiver, IERC20(_tokenAddress).balanceOf(_receiver), IERC20(_tokenAddress).balanceOf(address(this)));
+        console.log("TransferTT:%s, balanceOf:%s, Total:%s",_receiver, IERC20(_tokenAddress).balanceOf(_receiver), IERC20(_tokenAddress).balanceOf(address(this)));
     }
 
 
     // withdraw eth
     function withdraw(address payable _to) public onlyRole(ASSET_ROLE) {
-        _to.transfer(address(this).balance);
+        uint256 balance = address(this).balance;
+        _to.transfer(balance);
+        emit Withdraw(address(0), _to, balance);
     }
 
 
@@ -945,13 +958,52 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     }
 
     // withdraw token
-    function withdrawToken(address _token, address to) public onlyRole(ASSET_ROLE) {
+    function withdrawToken(address _token, address _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = getWithdrawableAmount(_token);
-        IERC20(_token).transfer(to, balance);
+        IERC20(_token).transfer(_to, balance);
+        emit Withdraw(_token, _to, balance);
+    }
+
+
+    // withdraw allocation eth
+    function withdrawalAllocation(uint256 _roundID, address payable _to, uint256 _amount) public onlyRole(ALLOCATION_ASSET_ROLE) {
+        require(_roundID > 0, "Params roundID is empty");
+        require(_to != address(0), "Params to is empty");
+        require(_amount > 0, "Params amount is empty");
+        Types.Project storage project = round[_roundID];
+        
+        // total pre-sale amount
+        uint256 totalAmount = SafeMath.mul(project.nftPrice, project.totalSales);
+        require(totalAmount > 0, "No total pre-sale amount");
+        withdrawalAllocationTotalAmount[_roundID] += _amount;
+        require(totalAmount >= withdrawalAllocationTotalAmount[_roundID], "Exceeding the maximum withdrawal amount");
+
+        if(project.payment == address(0)){
+            uint256 balance = address(this).balance;
+            require(balance >= _amount, "The withdrawal amount for this allocation is insufficient");
+            _to.transfer(_amount);
+        } else {
+            uint256 balance = IERC20(project.payment).balanceOf(address(this));
+            require(balance >= _amount, "The withdrawal token amount for this allocation is insufficient");
+            IERC20(project.payment).transfer(_to, _amount);
+        }
+        withdrawalAllocationTo[_roundID][_to] = _amount;
+        emit WithdrawalAllocation(_roundID, _to, _amount);
+    }
+
+
+    /**
+     * @dev Returns the allocation amount of tokens that can be withdrawn by the owner.
+     * @return the amount of tokens
+     */
+    function getAllocationWithdrawableAmount(uint256 _roundID, address _token) public view returns (uint256) {
+        Types.Project storage project = round[_roundID];
+        // total pre-sale amount
+        return SafeMath.mul(project.nftPrice, project.totalSales);
     }
 
     // Set the maximum number of projects created by the project team
     function setMaxAlloctionLimit(uint8 _limit) public onlyRole(OPERATOR_ROLE) {
-        maxAlloctionLimit=_limit;
+        maxAlloctionLimit =_limit;
     }
 }

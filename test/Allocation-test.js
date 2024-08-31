@@ -1,20 +1,9 @@
-const {
-  deploy,
-  gasCalculate,
-  getDeployed,
-  getDeployedInstance,
-} = require("./deploy.js");
 const chai = require("chai");
-
-const { ethers, artifacts, ethereum, web3 } = require("hardhat");
-
-const { encrypt, recoverPersonalSignature, recoverTypedSignatureLegacy, signTypedDataLegacy, recoverTypedSignature, recoverTypedSignature_v4 } = require("eth-sig-util");
-
+const { ethers, ethereum, web3, upgrades } = require("hardhat");
 const { BigNumber, utils, provider } = ethers;
-const { zeroAddress, bufferToHex, keccakFromString, privateToAddress, ecsign } = require("ethereumjs-util");
-const { structHash, signHash, signTypedData, signDeposit, signDeployApNFT } = require("./signCoreskyHub.js");
-const { Signer } = require("ethers");
-const { hexStripZeros, solidityPack, concat, toUtf8Bytes, keccak256, SigningKey, formatBytes32String, joinSignature, splitSignature, defaultAbiCoder } = utils;
+const { zeroAddress } = require("ethereumjs-util");
+const { signTypedData, signProjectVote, signDeployApNFT, signDeposit } = require("./signCoreskyHub.js");
+const { toUtf8Bytes, keccak256, splitSignature, defaultAbiCoder } = utils;
 const {
   SIGN_PUB,
   SIGN_PRI
@@ -72,16 +61,6 @@ describe("Allocation-test", function () {
   let launchpad;
   let nft721;
   let apNftNo;
-  let leaves;
-  let treeRoot;
-  let leaves500;
-  let treeRoot500;
-  let vipLeaves;
-  let vipTreeRoot;
-  // 5.创建ERC20合约
-  let erc20TransferProxy;
-  // Goerli USDT token (owner:0x12406A2a835A388192a5B0a63Db06F15dD4e3c32)
-  // 0x5BD32a1FF0fEA199c7B9d79442d776fdA731d1D4
   let erc20token;
 
   let issueToken;
@@ -105,33 +84,7 @@ describe("Allocation-test", function () {
   it("deploy", async function () {
     const { admin, operator, bob } = await signer();
 
-    let mocker = accounts[0].address;
-
-    let minter = accounts[1].address;
-
     let user = accounts[4].address;
-
-    const TestMetaTxLib = await ethers.getContractFactory("MetaTxLib");
-    metaTxLib = await TestMetaTxLib.deploy();
-    await metaTxLib.deployed();
-    const TestAllocationLib = await ethers.getContractFactory("AllocationLib");
-    let allocationLib = await TestAllocationLib.deploy();
-    await allocationLib.deployed();
-
-    const TestApNftLib = await ethers.getContractFactory("ApNftLib");
-    let apNftLib = await TestApNftLib.deploy();
-    await apNftLib.deployed();
-
-
-    const TestCoreskyHub = await ethers.getContractFactory("CoreskyHub", {
-      libraries: {
-        MetaTxLib: metaTxLib.address,
-        AllocationLib: allocationLib.address,
-        ApNftLib: apNftLib.address,
-        // Types: _types.address
-      },
-    });
-
 
     const TetherToken = await ethers.getContractFactory("TetherToken");
 
@@ -143,32 +96,29 @@ describe("Allocation-test", function () {
     console.log("USDT:", erc20token.address, "totalSupply:", totalSupply);
     console.log("admin Balance:", admin.address, await erc20token.balances(admin.address));
     // 为账号0x51A41BA1Ce3A6Ac0135aE48D6B92BEd32E075fF0 转移10000
-    await erc20token.transfer(user, 10000000000);
+    await erc20token.transfer(user, 1000000);
     console.log("user Balance:", user, await erc20token.balances(user));
+    
+    const TestAllocation = await ethers.getContractFactory("AllocationUpgradeable");
+    launchpad = await upgrades.deployProxy(TestAllocation, [admin.address, operator.address]);
+    await launchpad.deployed();
 
-    /**
-     * constructor(address root, address creator) {
-        _setupRole(DEFAULT_ADMIN_ROLE, root);
-        _grantRole(CREATE_ROLE, creator);
-    }
-     */
-    coreskyHub = await TestCoreskyHub.deploy(admin.address, operator.address, SIGN_PUB);
+    // const TestApNft = await ethers.getContractFactory("AssetPackagedNFTUpgradeable");
+    // let apNftPlatform = await upgrades.deployProxy(TestApNft,[_symbol, _name, _baseUri]);
+    // await apNftPlatform.deployed();
+
+    const TestApNft = await ethers.getContractFactory("AssetPackagedNFTUpgradeable");
+    let apNftPlatform = await TestApNft.deploy();
+    await apNftPlatform.deployed();
+
+    const TestCoreskyHubInitializable = await ethers.getContractFactory("CoreskyHubInitializable");
+    coreskyHub = await upgrades.deployProxy(TestCoreskyHubInitializable, [launchpad.address, apNftPlatform.address, admin.address, operator.address, SIGN_PUB]);
     await coreskyHub.deployed();
-
-    console.log("coreskyHub address:", coreskyHub.address);
+    
+    console.log("upgradeableContract deployed to:", coreskyHub.address, "version:", (await coreskyHub.getRevision()));
+    
     let PlatformAllocationAddress = await coreskyHub.getPlatformAllocation();
     console.log("PlatformAllocation address:", PlatformAllocationAddress);
-
-    const TestMockLaunchpad = await ethers.getContractFactory("Allocation");
-    if(PlatformAllocationAddress===zeroAddress()){
-      launchpad = await TestMockLaunchpad.deploy(admin.address, operator.address);
-      // 设置PlatformAllocation地址
-      await coreskyHub.setPlatformAllocation(launchpad.address);
-      PlatformAllocationAddress = await coreskyHub.getPlatformAllocation();
-      console.log("PlatformAllocation new address:", PlatformAllocationAddress);
-    }else{
-      launchpad = await TestMockLaunchpad.attach(PlatformAllocationAddress);
-    }
     
     let operatorRole = await launchpad.OPERATOR_ROLE();
     await launchpad.grantRole(operatorRole, coreskyHub.address);
@@ -180,9 +130,9 @@ describe("Allocation-test", function () {
     const { admin, operator, bob, sam, user} = await signer();
     // _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     // _setupRole(MINTER_ROLE, _msgSender());
-    const TestMockAirDrop = await ethers.getContractFactory("CoreskyAirDrop");
+    const TestMockAirDrop = await ethers.getContractFactory("CoreskyAirDropUpgradeable");
 
-    airdrops = await TestMockAirDrop.deploy(admin.address, operator.address);
+    airdrops = await upgrades.deployProxy(TestMockAirDrop, [admin.address, operator.address]);
     await airdrops.deployed();
 
     console.log("TestMockAirDrop deployed to:", airdrops.address);
@@ -267,12 +217,12 @@ describe("Allocation-test", function () {
 
     let deployedAddress = await coreskyHub.getApNFT(apNftNo);
 
-    const TestMockNFT721 = await ethers.getContractFactory("AssetPackagedNFT");
+    const TestMockNFT721 = await ethers.getContractFactory("AssetPackagedNFTUpgradeable");
     nft721 = await TestMockNFT721.attach(deployedAddress);
 
-    console.log("TestMockNFT721 deployed to:", nft721.address);
+    console.log("TestMockNFT721 deployed to:", nft721);
 
-    let adminRole = await nft721.DEFAULT_ADMIN_ROLE();
+    let adminRole = await nft721.baseUri();
     let minterRole = await nft721.MINTER_ROLE();
     console.log("TestMockNFT721 DEFAULT_ADMIN_ROLE:", adminRole);
     console.log("TestMockNFT721 MINTER_ROLE:", minterRole);
@@ -950,14 +900,17 @@ describe("Allocation-test", function () {
     let receivedAddress = admin.address;
     // _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     // _setupRole(MINTER_ROLE, _msgSender());
-    const TestApNftVesting = await ethers.getContractFactory("ApNftVesting");
+    const TestApNftVesting = await ethers.getContractFactory("ApNftVestingUpgradeable");
 
     /**
      *  address admin,
         address receivedAddress
      */
 
-    apNftVesting = await TestApNftVesting.deploy(admin.address, receivedAddress);
+    // apNftVesting = await TestApNftVesting.deploy(admin.address, receivedAddress);
+    // await apNftVesting.deployed();
+
+    apNftVesting = await upgrades.deployProxy(TestApNftVesting, [admin.address, receivedAddress]);
     await apNftVesting.deployed();
 
     console.log("TestApNftVesting deployed to:", apNftVesting.address);

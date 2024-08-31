@@ -1,7 +1,7 @@
 const { expect, assert } = require("chai");
 const { BigNumber, utils } = require("ethers");
 const fs = require("fs");
-const hre = require("hardhat");
+const { ethers, ethereum, web3, upgrades } = require("hardhat");
 const { MerkleTree } = require("merkletreejs");
 const {
   solidityPack,
@@ -45,9 +45,11 @@ describe("CoreskyAirDrop-test", function () {
     let operator = accounts[4].address;
     // _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     // _setupRole(MINTER_ROLE, _msgSender());
-    const TestMockAirDrop = await ethers.getContractFactory("CoreskyAirDrop");
+    const TestMockAirDrop = await ethers.getContractFactory("CoreskyAirDropUpgradeable");
 
-    airdrops = await TestMockAirDrop.deploy(admin, operator);
+    // airdrops = await TestMockAirDrop.deploy(admin, operator);
+    
+    airdrops = await upgrades.deployProxy(TestMockAirDrop,[admin, operator]);
     await airdrops.deployed();
 
     console.log("TestMockAirDrop deployed to:", airdrops.address);

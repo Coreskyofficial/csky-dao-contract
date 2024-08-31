@@ -14,7 +14,7 @@ contract AssetPackagedNFTUpgradeable is Initializable, ERC721Upgradeable, Access
 
     bool private _initialized;
     // auto mint tokenid = 1000
-    uint256 private BATCH_TOKEN_INC_INDEX = 0;
+    uint256 private BATCH_TOKEN_INC_INDEX;
 
     // The maximum `quantity` that can be minted with {_mintERC721}.
     // This limit is to prevent overflows on the address data entries.
@@ -23,7 +23,7 @@ contract AssetPackagedNFTUpgradeable is Initializable, ERC721Upgradeable, Access
     uint256 private constant MAX_MINT_QUANTITY_LIMIT = 1000;
 
     // modify batch start token only modify once.
-    bool private modifyBatchToken = false;
+    bool private modifyBatchToken;
 
     /**
      * batch mint and free mint start tokenId

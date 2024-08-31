@@ -34,7 +34,7 @@ contract VoteToolUpgradeable is Initializable, AccessControlUpgradeable {
 
     PayType public pay;
 
-    uint256 ONE_VOTE_ETH = 1 gwei;
+    uint256 public constant ONE_VOTE_ETH = 1 gwei;
 
     /* BASE PERCENT. */
     uint public constant BASE_PERCENT = 100;

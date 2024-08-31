@@ -15,7 +15,7 @@ const {
 const { getJson } = require("./json.js");
 const chai = require("chai");
 
-const { ethers } = require('hardhat');
+const { ethers, ethereum, web3, upgrades } = require("hardhat");
 
 const {
   encrypt,
@@ -48,25 +48,8 @@ async function signer() {
 }
 
 describe("CoreskyVoteTool-test", function () {
-  let lpid = 256;
-  let lpid2 = 100;
   let accounts;
-  let metaTxLib;
-  let coreskyHub;
   let voteTool;
-  let launchpad;
-  let nft721;
-  let apNftNo;
-  let leaves;
-  let treeRoot;
-  let leaves500;
-  let treeRoot500;
-  let vipLeaves;
-  let vipTreeRoot;
-  // 5.创建ERC20合约
-  let erc20TransferProxy;
-  // Goerli USDT token (owner:0x12406A2a835A388192a5B0a63Db06F15dD4e3c32)
-  // 0x5BD32a1FF0fEA199c7B9d79442d776fdA731d1D4
   let erc20token;
 
   // string memory _name,
@@ -89,23 +72,10 @@ describe("CoreskyVoteTool-test", function () {
   it("deploy", async function () {
     const { admin, operator } = await signer();
 
-    let mocker = accounts[0].address;
-
-    let minter = accounts[1].address;
-
     let user = accounts[4].address;
     let user2 = accounts[5].address;
 
-    const TestMetaTxLib = await ethers.getContractFactory("MetaTxLib");
-    metaTxLib = await TestMetaTxLib.deploy();
-    await metaTxLib.deployed();
-
-    const TestVoteTool = await ethers.getContractFactory("VoteTool", {
-      libraries: {
-        MetaTxLib: metaTxLib.address,
-        // Types: _types.address
-      }
-    });
+    const TestVoteTool = await ethers.getContractFactory("VoteToolUpgradeable");
 
     // const TetherToken = await ethers.getContractFactory("TetherToken");
 
@@ -152,160 +122,13 @@ describe("CoreskyVoteTool-test", function () {
         _grantRole(CREATE_ROLE, creator);
     }
      */
-    voteTool = await TestVoteTool.deploy(
-      admin.address,
-      operator.address
-    );
+    // voteTool = await TestVoteTool.deploy(
+    //   admin.address,
+    //   operator.address
+    // );
+    voteTool = await upgrades.deployProxy(TestVoteTool, [admin.address, operator.address])
     await voteTool.deployed();
 
-  });
-
-  it("metaTxLib-verify", async function () {
-    const { admin, operator, bob, sam, user } = await signer();
-    /**
-    function applyProjectVote(
-      uint256 _roundID, 
-      uint256 _totalQuantity) external onlyRole(OPERATOR_ROLE) {
- */
-
-        const network = await provider.getNetwork();
-        const chainId = network.chainId;
-        console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
-    
-        
-        // Get test privatekey
-        // const privateKey = keccakFromString('cow');
-        // const targetAddress = "0x" + privateToAddress(privateKey).toString('hex');
-    
-        let nonce = parseInt(await voteTool.connect(sam).nonce()) ;
-        let now = parseInt(new Date().getTime() / 1000);
-        let deadline = now + 5*60;
-        let serialNo = now;
-    
-        let supportCount = 50;
-        let opposeCount = 10;
-        let voteRatio = supportCount * 100 / (supportCount + opposeCount);
-        voteRatio = parseInt(voteRatio);
-    
-        let expireTime = now + 10*60;
-        /**
-         * 
-        struct ProjectVote{
-            // 投票编号
-            uint256 serialNo;
-            // 项目方地址
-            address projectAddr;
-            // 支持数量
-            uint256 supportCount;
-            // 反对数量
-            uint256 opposeCount;
-            // 投票比率
-            uint256 voteRatio;
-            // 过期时间
-            uint256 expireTime;
-        }
-         */
-        let projectVote ={
-          serialNo,
-          projectAddr: sam.address,
-          supportCount,
-          opposeCount,
-          voteRatio,
-          expireTime
-        }
-    
-        let message = {
-          ...projectVote,
-          nonce,
-          deadline,
-        }
-        
-        let verifyContract = metaTxLib.address;
-        // let messageHash = structHash("applyProjectVote", message);
-    
-        // let hashedMessage = signHash(messageHash, chainId, verifyContract);
-
-        let msgParams = signTypedData(chainId, verifyContract,"addProposal", message);
-    
-        console.log("==>>msgParams", msgParams);
-        const sign = await sam._signTypedData(
-          msgParams.domain,
-          msgParams.types,
-          msgParams.message
-        );
-        
-        console.log(`signature = `, sign);
-        // 如果是metmask插件，可以调用下面的方法
-        // const signature = await provider.send('eth_signTypedData_v3', [signer.address, msgParams]);
-    
-        const jsRecoveredAddr = utils.verifyTypedData(
-          msgParams.domain,
-          msgParams.types,
-          msgParams.message,
-          sign
-        );
-        // const jsRecoveredAddr = recoverTypedSignature({
-        //   data: msgParams,
-        //   sig: signature,
-        // });
-
-        // const sig = await provider.send('personal_sign', [
-        //   hashedMessage,
-        //   sam.address,
-        // ]);
-        // console.log(`signature = `, sig);
-    
-        // const jsRecoveredAddr = recoverPersonalSignature({
-        //   data: hashedMessage,
-        //   sig: sig,
-        // });
-        // console.log('jsRecoveredAddr = ', jsRecoveredAddr);
-        
-        chai.expect(await sam.address.toUpperCase()).to.equal(
-          jsRecoveredAddr.toUpperCase()
-        );
-
-        // const sig = ecsign(digest, privateKey);
-    
-        
-    /**
-     *     struct EIP712Signature {
-            address signer;
-            uint8 v;
-            bytes32 r;
-            bytes32 s;
-            uint256 deadline;
-        }
-     */
-      const _sign=  splitSignature(sign);
-      let signature = {
-           signer: sam.address,
-           v: _sign.v,
-           r: _sign.r,
-           s: _sign.s,
-           deadline
-        }
-    
-    console.log("eip712Contract.verify:", signature, projectVote)
-        let tx = await metaTxLib.verify(
-              signature.signer,
-              signature.v,
-              signature.r,
-              signature.s,
-              signature.deadline,
-              serialNo,
-              sam.address,
-              supportCount,
-              opposeCount,
-              voteRatio,
-              expireTime
-            );
-    
-            console.log(tx)
-            console.log("======================================")
-
-         
   });
 
   it("VoteTool-addProposal-bob-【success】", async function () {
@@ -315,7 +138,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         
         // Get test privatekey
@@ -452,7 +275,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         ////////////////////////////////
         let nonce = parseInt(await voteTool.connect(_signer).nonce()) ;
@@ -542,7 +365,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         ////////////////////////////////
         let nonce = parseInt(await voteTool.connect(_signer).nonce()) ;
@@ -649,7 +472,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         ////////////////////////////////
         let nonce = parseInt(await voteTool.connect(_signer).nonce());
@@ -742,7 +565,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         ////////////////////////////////
         let nonce = parseInt(await voteTool.connect(_signer).nonce()) ;
@@ -855,7 +678,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         ////////////////////////////////
         let nonce = parseInt(await voteTool.connect(_signer).nonce()) ;
@@ -962,7 +785,7 @@ describe("CoreskyVoteTool-test", function () {
         const network = await provider.getNetwork();
         const chainId = network.chainId;
         console.log('chainId = ', network.chainId);
-        console.log("MetaTxLib", metaTxLib.address)
+        
     
         ////////////////////////////////
         let nonce = parseInt(await voteTool.connect(_signer).nonce()) ;

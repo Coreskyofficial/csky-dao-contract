@@ -1,7 +1,7 @@
 const { expect, assert } = require("chai");
 const { BigNumber, utils } = require("ethers");
 const fs = require("fs");
-const hre = require("hardhat");
+const { ethers, ethereum, web3, upgrades } = require("hardhat");
 const { MerkleTree } = require("merkletreejs");
 const {
   solidityPack,
@@ -46,7 +46,7 @@ describe("ApNftVesting-test", function () {
     let operator = accounts[4].address;
     // _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     // _setupRole(MINTER_ROLE, _msgSender());
-    const TestApNftVesting = await ethers.getContractFactory("ApNftVesting");
+    const TestApNftVesting = await ethers.getContractFactory("ApNftVestingUpgradeable");
 
     /**
      * 
@@ -55,7 +55,8 @@ describe("ApNftVesting-test", function () {
         address receivedAddress
      */
 
-    apNftVesting = await TestApNftVesting.deploy(admin, receivedAddress);
+    // apNftVesting = await TestApNftVesting.deploy(admin, receivedAddress);
+    apNftVesting = await upgrades.deployProxy(TestApNftVesting, [admin, receivedAddress])
     await apNftVesting.deployed();
 
     console.log("TestApNftVesting deployed to:", apNftVesting.address);
@@ -79,7 +80,7 @@ describe("ApNftVesting-test", function () {
     // _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     // _setupRole(MINTER_ROLE, _msgSender());
     // _setupRole(BURNER_ROLE, _msgSender());
-    const TestMockNFT721 = await ethers.getContractFactory("OortPackagedNFT");
+    const TestMockNFT721 = await ethers.getContractFactory("AssetPackagedNFTUpgradeable");
     /**
 		 * 
 		constructor(
@@ -88,7 +89,8 @@ describe("ApNftVesting-test", function () {
 			string memory _baseUri
 		)
 		 */
-    nft721 = await TestMockNFT721.deploy(_name, _symbol, _baseUri);
+    nft721 = await upgrades.deployProxy(TestMockNFT721,[_symbol, _name, _baseUri]);
+    // nft721 = await TestMockNFT721.deploy(_name, _symbol, _baseUri);
     await nft721.deployed();
 
     console.log("TestMockNFT721 deployed to:", nft721.address);
