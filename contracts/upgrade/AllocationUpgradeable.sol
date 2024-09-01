@@ -496,6 +496,8 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
                 
             }
         }
+
+        withdrawalAllocationTotalAmount[roundID] = total;
     }
 
     function _refundEth(uint256 roundID, address payable _Referrer, uint256 _ReferrerFee, address receiver, uint256 totalPayment) internal virtual{
@@ -551,6 +553,10 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         // Get the project associated with the given roundID
         Types.Project storage project = round[roundID];
                   
+        uint256 totalAmount = project.nftPrice * project.totalSales;
+        withdrawalAllocationTotalAmount[roundID] += _amount;
+        require(totalAmount >= withdrawalAllocationTotalAmount[roundID], "Exceeding the maximum withdrawal amount");
+        
         /* Amount that will be received by user (for Ether). */
         uint256 receiveAmount = _amount;
         uint256 referrerFee;
@@ -984,8 +990,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
             _to.transfer(_amount);
         } else {
             uint256 balance = IERC20(project.payment).balanceOf(address(this));
+            console.log("balance %s, amount %s", balance, _amount);
             require(balance >= _amount, "The withdrawal token amount for this allocation is insufficient");
-            IERC20(project.payment).transfer(_to, _amount);
+            IERC20(project.payment).safeTransfer(_to, _amount);
         }
         withdrawalAllocationTo[_roundID][_to] = _amount;
         emit WithdrawalAllocation(_roundID, _to, _amount);
@@ -996,10 +1003,11 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      * @dev Returns the allocation amount of tokens that can be withdrawn by the owner.
      * @return the amount of tokens
      */
-    function getAllocationWithdrawableAmount(uint256 _roundID, address _token) public view returns (uint256) {
+    function getAllocationWithdrawableAmount(uint256 _roundID) public view returns (uint256) {
         Types.Project storage project = round[_roundID];
         // total pre-sale amount
-        return SafeMath.mul(project.nftPrice, project.totalSales);
+        uint256 totalAmount = SafeMath.mul(project.nftPrice, project.totalSales);
+        return totalAmount.sub(withdrawalAllocationTotalAmount[_roundID]);
     }
 
     // Set the maximum number of projects created by the project team
