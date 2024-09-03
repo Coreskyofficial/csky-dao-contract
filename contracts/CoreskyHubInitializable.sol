@@ -6,6 +6,9 @@ import {CoreskyHubUpgradeable} from './upgrade/CoreskyHubUpgradeable.sol';
 import {Types} from './libraries/Types.sol';
 import {VersionedInitializable} from './upgrade/VersionedInitializable.sol';
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 
 /**
  * @title CoreskyHubInitializable

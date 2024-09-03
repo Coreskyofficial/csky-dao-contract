@@ -31,7 +31,8 @@ const {
   ETH_PK_2,
   ETH_PK_3,
   ETH_PK_4,
-  POLYGON_MUMBAISCAN_API_KEY
+  POLYGON_MUMBAISCAN_API_KEY,
+  ALCHEMY_API_KEY
 } = process.env;
 
 module.exports = {
@@ -54,7 +55,19 @@ module.exports = {
         ETH_PK_3,
         ETH_PK_4,
       ],
-    }
+    },
+    polygon_main: {
+      url: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+      accounts: [
+        GOERLI_PRIVATE_KEY1,
+        GOERLI_PRIVATE_KEY2,
+        ETH_PK_2,
+        ETH_PK_3,
+        ETH_PK_4,
+      ],
+      chainId: 137,
+      gas: 3000000,
+    },
   },
   etherscan: {
     apiKey: {
