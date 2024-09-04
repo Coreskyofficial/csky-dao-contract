@@ -36,9 +36,32 @@ library StorageLib {
     uint256 constant LAST_INITIALIZED_REVISION_SLOT = 18; 
 
     
-    uint256 constant PLATFORM_ALLOCATION_SLOT = 19; 
+    uint256 constant PLATFORM_ALLOCATION_SLOT = 19;
     uint256 constant PLATFORM_APNFT_SLOT = 20; 
+
+    uint256 constant MAX_ALLOCATION_LIMIT_SLOT = 21; 
+    uint256 constant GROUP_ALLOCATIONS_MAPPING_SLOT = 22; 
+
     
+    // groupId => address[]    
+    function groupAllocations() internal pure returns (mapping(uint256 => address[]) storage _groupAllocations) {
+        assembly {
+            _groupAllocations.slot := GROUP_ALLOCATIONS_MAPPING_SLOT
+        }
+    }
+
+    function getMaxAllocationLimit() internal view returns (uint256 _maxAllocationLimit) {
+        assembly {
+            _maxAllocationLimit := sload(MAX_ALLOCATION_LIMIT_SLOT)
+        }
+    }
+
+    function setMaxAllocationLimit(uint256 newmaxAllocationLimit) internal {
+        assembly {
+            sstore(MAX_ALLOCATION_LIMIT_SLOT, newmaxAllocationLimit)
+        }
+    }
+
 
     function getPlatformApNFT() internal view returns (address _platformApNFT) {
         assembly {

@@ -134,5 +134,16 @@ abstract contract CoreHubStorage {
         return StorageLib.getPlatformApNFT();
     }
 
+    // getMaxAllocationLimit
+    // address public maxAllocationLimit; // Slot#21
+    function getMaxAllocationLimit() public view returns (uint256) {
+        return StorageLib.getMaxAllocationLimit();
+    }
+
+    // groupID => allocation array
+    // mapping(uint256 => address[]) storage _groupAllocations;//Slot#22
+    function groupAllocations(uint256 groupID) public view returns (address[] memory) {
+        return StorageLib.groupAllocations()[groupID];
+    }
 
 }

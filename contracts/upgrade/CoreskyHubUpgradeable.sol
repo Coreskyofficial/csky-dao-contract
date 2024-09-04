@@ -60,6 +60,7 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         StorageLib.allAllocations().push(allocationImpl);
 
         StorageLib.setPlatformApNFT(apNFTImpl);
+        StorageLib.setMaxAllocationLimit(2);
         maxMintLimit = 50;
     }
     receive() external payable {}
@@ -197,8 +198,12 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
             require(false, "AllocationExist");
             // revert Errors.AllocationExist();
         }
+
+        if(groupAllocations(_groupID).length >= getMaxAllocationLimit() && !hasRole(OPERATOR_ROLE, msg.sender)){
+            require(false, "ExceedMaxAllocationLimit");
+        }
+
         // 创建新合约
-        
         console.log("PlatformAllocation: %s, this: %s", getPlatformAllocation(), address(this));
         allocation = Clones.clone(getPlatformAllocation());
         console.log("CreateAllocation: %s", allocation);
@@ -234,6 +239,7 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         StorageLib.getAllocation()[_roundID] = allocation;
         StorageLib.getAllocationOwner()[allocation] = msg.sender;
         StorageLib.allAllocations().push(allocation);
+        StorageLib.groupAllocations()[_groupID].push(allocation);
     }
 
     function _allocation(uint256 _roundID) internal view returns (address){
@@ -748,4 +754,14 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
     function nonce() public view returns (uint256){
         return MetaTxLibUpgradeable.getNonce(msg.sender);
     }
+
+    /**
+     * @dev Set the allocation max limit.
+     *
+     * @param limit max allocation limit.
+     */
+    function setMaxAllocationLimit(uint256 limit) public onlyRole(OPERATOR_ROLE){
+        StorageLib.setMaxAllocationLimit(limit);
+    }
+
 }

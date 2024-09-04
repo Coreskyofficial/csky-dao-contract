@@ -385,6 +385,63 @@ describe("CoreskyHubInitializable-test", function () {
     console.log("LP :", launchpad.address, "FundraisingStatus:", await launchpad.getFundraisingStatus(lpid));
   });
 
+  it("coreskyHub-createAllocation-ExceedMaxAllocationLimit", async function () {
+    const { admin, operator, bob } = await signer();
+    /**
+         function createAllocation(
+          uint256 _roundID, 
+          address _target, 
+          address _payment, 
+          uint256 _nftPrice, 
+          uint256 _startTime, 
+          uint256 _endTime)
+          public onlyRole(OPERATOR_ROLE) {
+    ) 
+ */
+    let _roundID = lpid + 1;
+    let _target = nft721.address;
+    let _receipt = operator.address;
+    let _payment = zeroAddress();
+    let _nftPrice = 2000;
+    let now = parseInt(new Date().getTime() / 1000);
+    let _startTime = now - 60;
+    let _endTime = now + 3600;
+    let _voteEndTime = _endTime + 60;
+    let _mintEndTime = _voteEndTime + 60;
+    let _totalQuantity = 200;
+
+    let tx = await coreskyHub.connect(bob).createAllocation(groupID, _roundID, _target,_receipt, _payment, _nftPrice, _startTime, _endTime, _voteEndTime, _mintEndTime, _totalQuantity);
+
+    _roundID = lpid + 2;
+
+    tx = coreskyHub.connect(bob).createAllocation(groupID, _roundID, _target,_receipt, _payment, _nftPrice, _startTime, _endTime, _voteEndTime, _mintEndTime, _totalQuantity);
+
+    await (0, chai.expect)(tx).to.be.revertedWith( `ExceedMaxAllocationLimit`);
+  });
+
+  it("coreskyHub-createAllocation-operator-nolimit", async function () {
+    const { admin, operator, bob } = await signer();
+    let _target = nft721.address;
+    let _receipt = operator.address;
+    let _payment = zeroAddress();
+    let _nftPrice = 2000;
+    let now = parseInt(new Date().getTime() / 1000);
+    let _startTime = now - 60;
+    let _endTime = now + 3600;
+    let _voteEndTime = _endTime + 60;
+    let _mintEndTime = _voteEndTime + 60;
+    let _totalQuantity = 200;
+    // 授权为操作者，可以无限创建
+    let operatorRole = await coreskyHub.OPERATOR_ROLE();
+    // 项目授权
+    await coreskyHub.grantRole(operatorRole, bob.address);
+
+    for(let i=0;i< 10;i++){
+      let _roundID = lpid + i + 2;
+      let tx = await coreskyHub.connect(bob).createAllocation(groupID, _roundID, _target,_receipt, _payment, _nftPrice, _startTime, _endTime, _voteEndTime, _mintEndTime, _totalQuantity);
+    }
+  });
+
   it("coreskyHub-createAllocation other group", async function () {
     const { admin, operator, bob } = await signer();
     /**
