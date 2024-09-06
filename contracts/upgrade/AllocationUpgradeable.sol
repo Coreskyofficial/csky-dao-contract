@@ -399,6 +399,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         require(voteNum > 0, "vote num is 0");
         // Number of dissenting votes
         vote.voteCount += voteNum;
+        userVoteNum[roundID][voteUser] = 0;
         vote.voteRatio = SafeMath.div(SafeMath.mul(vote.voteCount, BASE_PERCENT), vote.totalVote);
 
         // If the number of dissenting votes is greater than 50%, the fundraising has failed.
