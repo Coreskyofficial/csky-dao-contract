@@ -11,6 +11,8 @@ const {
 
 const TRANSTER_EVENT = keccak256(toUtf8Bytes("Transfer(address,address,uint256)"));
 const AIRDROP_TOKEN_EVENT = keccak256(toUtf8Bytes("AirDropToken(address,address,uint256,uint256,uint256,uint256)"));
+const Refund_EVENT = keccak256(toUtf8Bytes("Refund(uint256,uint256,address,uint256,uint256,uint256,uint256)"));
+const SendFundraising_EVENT = keccak256(toUtf8Bytes("SendFundraising(uint256,uint256,address,uint256,uint256,uint256)"));
 
 
 async function signer() {
@@ -81,6 +83,13 @@ describe("Allocation-test", function () {
   let apNftNo3;
   let issueToken3;
 
+    ////////////////////lp4///////////////////
+    let lpid4 = 259;
+    let presaleUsers4 = [];
+    let nft7214;
+    let apNftNo4;
+    let issueToken4;
+
   // string memory _name,
   // string memory _symbol,
   // string memory _baseUri
@@ -139,6 +148,8 @@ describe("Allocation-test", function () {
     
     let operatorRole = await launchpad.OPERATOR_ROLE();
     await launchpad.grantRole(operatorRole, coreskyHub.address);
+    // 设置手续费接受地址
+    await launchpad.connect(operator).setFeeTo(operator.address);
 
   });
 
@@ -1962,6 +1973,765 @@ describe("Allocation-test", function () {
       
     });
     
+
+////////////////////////////////Test Allocation Three//////////////////////////////////////
+    it("A3-IssueToken", async function () {
+      const { admin, operator, bob } = await signer();
+  
+      const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
+  
+      // constructor() payable ERC20("ERC20Mock", "ERC20Mock")
+      issueToken3 = await ERC20Mock.connect(bob).deploy();
+      await issueToken3.deployed();
+      let totalSupply = await issueToken3.totalSupply();
+  
+      console.log("ERC20Mock:", issueToken3.address, "totalSupply:", totalSupply);
+      console.log(
+        "bob Balance:",
+        bob.address,
+        await issueToken3.balanceOf(bob.address)
+      );
+      // 为账号0x51A41BA1Ce3A6Ac0135aE48D6B92BEd32E075fF0 转移10000
+      // await issueToken2.transfer(user, m(10000000));
+      // console.log("user Balance:", user, await issueToken2.balanceOf(user));
+  
+  
+      // await issueToken2.transfer(user2, m(10000000));
+      // console.log("user2 Balance:", user2, await issueToken2.balanceOf(user2));
+      
+    });
+  
+    it("A3-coreskyHub-deployApNFT", async function () {
+      const { admin, operator, bob } = await signer();
+      /**
+     function deployApNFT(
+          uint256 apNftNo,
+          string memory _name,
+          string memory _symbol,
+          string memory _baseUri
+      ) 
+    */
+      let now = parseInt(new Date().getTime() / 1000);
+      apNftNo3 = now + 2;
+      let deadline = now + 20000;
+  
+      let botSignature =  await signDeployApNFT(apNftNo3, _name, _symbol, _baseUri, deadline);
+      let tx = await coreskyHub.connect(operator).deployApNFT(apNftNo3, _name, _symbol, _baseUri, deadline, botSignature);
+  
+      // let data = await tx.wait();
+      // console.log(data.events)
+  
+      let deployedAddress = await coreskyHub.getApNFT(apNftNo3);
+  
+      const TestMockNFT721 = await ethers.getContractFactory("AssetPackagedNFTUpgradeable");
+      nft7213 = await TestMockNFT721.attach(deployedAddress);
+  
+      console.log("TestMockNFT721 deployed to:", nft7213.address);
+  
+      let adminRole = await nft7213.baseUri();
+      let minterRole = await nft7213.MINTER_ROLE();
+      console.log("TestMockNFT721 DEFAULT_ADMIN_ROLE:", adminRole);
+      console.log("TestMockNFT721 MINTER_ROLE:", minterRole);
+  
+      // let minter = operator.address;
+      // console.log("TestMockNFT721 grantRole[MINTER_ROLE] before:", minter, await nft7213.hasRole(minterRole, minter));
+      // 为账户2增加minter权限
+      // await nft7213.grantRole(minterRole, minter);
+      // await coreskyHub.setContractRole(nft7213.address, minterRole, minter);
+  
+      // console.log("TestMockNFT721 grantRole[MINTER_ROLE] after:", minter, await nft7213.hasRole(minterRole, minter));
+    });
+  
+    it("A3-Allocation-launchpad", async function () {
+      const { admin, operator } = await signer();
+      /**
+           function launchpad(
+            uint256 _roundID, 
+            address _target, 
+            address payable _receipt, 
+            address _payment, 
+            uint256 _nftPrice, 
+            uint256 _startTime, 
+            uint256 _endTime)
+            public onlyRole(OPERATOR_ROLE) {
+      ) 
+    */
+      let _roundID = lpid3;
+      let _target = nft7213.address;
+      let _receipt = operator.address;
+      
+      let _payment = erc20token.address;
+      let _nftPrice = 3000;
+      let now = parseInt(new Date().getTime() / 1000);
+      let _startTime = now - 60;
+      let _endTime = now + 3600;
+      let _voteEndTime = _endTime + 60;
+      let _mintEndTime = _voteEndTime + 60;
+      console.log(
+        "launchpad param:",
+        _roundID,
+        _target,
+        _receipt,
+        _payment,
+        _nftPrice,
+        _startTime,
+        _endTime,
+        _voteEndTime,
+        _mintEndTime
+      );
+      await launchpad
+        .connect(operator)
+        .launchpad(
+          _roundID,
+          _target,
+          _receipt,
+          _payment,
+          _nftPrice,
+          _startTime,
+          _endTime,
+          _voteEndTime,
+          _mintEndTime
+        );
+  
+      let project = await launchpad.getProject(_roundID);
+      console.log(
+        "Launchpad project:",
+        project[0],
+        "receipt",
+        project[1],
+        "payment",
+        project[2],
+        "nftPrice",
+        n(project[3]),
+        "totalSales",
+        n(project[4]),
+        "startTime",
+        n(project[5]),
+        "endTime",
+        n(project[6])
+      );
+      
+    });
+  
+    it("A3-preSale-user", async function () {
+      const { admin, operator, bob, sam, user } = await signer();
+      /**
+      function preSale(
+          uint256 roundID,
+          uint256 preSaleID,
+          uint256 preSaleNum,
+            uint256 voteNum)
+      ) public payable
+      ) 
+    */
+      console.log("current user:", user.address);
+      let roundID = lpid3;
+      let preSaleID = parseInt(new Date().getTime() / 1000);
+      let preSaleNum = 5;
+      let voteNum = 999;
+      
+      let project = await launchpad.getProject(roundID);
+
+      let owner = user.address;
+      let _price = n(project[3]) * preSaleNum;
+      // get allowance
+      let allowaceBefore = await erc20token.allowance(owner, launchpad.address);
+      // approve
+      await erc20token.connect(user).approve(launchpad.address, 0);
+      await erc20token.connect(user).approve(launchpad.address, _price);
+      // get allowance
+      let allowaceAfter = await erc20token.allowance(owner, launchpad.address);
+      console.log(
+        "preSale param:",
+        roundID,
+        preSaleID,
+        preSaleNum,
+        owner,
+        "allowace:",
+        allowaceBefore,
+        allowaceAfter
+      );
+  
+      
+      let tx = await launchpad
+        .connect(user)
+        .preSale(roundID, preSaleID, preSaleNum, voteNum, {
+          from: owner,
+          value: 0,
+        });
+        presaleUsers3.push({ roundID, preSaleID, preSaleNum, voteNum });
+        project = await launchpad.getProject(roundID);
+  
+        console.log(
+          "Launchpad project:",
+          project[0],
+          "receipt",
+          project[1],
+          "payment",
+          project[2],
+          "nftPrice",
+          n(project[3]),
+          "totalSales",
+          n(project[4]),
+          "startTime",
+          n(project[5]),
+          "endTime",
+          n(project[6])
+        );
+        
+        console.log("LP :", launchpad.address, "Balance:", await erc20token.balances(launchpad.address));
+  
+        console.log("LP Presale num:", await launchpad.getPreSaleNum(user.address, preSaleID));
+        console.log("user nft balanceOf before:", n(await nft7213.balanceOf(user.address)));
+  
+    });
+  
+    it("A3-setTotalQuantity", async function () {
+      const { admin, operator, bob, sam, user } = await signer();
+      /**
+      function setTotalQuantity(
+        uint256 _roundID, 
+        uint256 _totalQuantity) external onlyRole(OPERATOR_ROLE) {
+    */
+  
+      let roundID = lpid3;
+      // function getTotalQuantity(uint256 _roundID) 
+      console.log("TotalQuantity Before:",await launchpad.getTotalQuantity(roundID));
+  
+      // function isAllowOversold(uint256 _roundID)
+      console.log("isAllowOversold Before:",await launchpad.isAllowOversold(roundID));
+      let _totalQuantity = 20;
+      let tx = await launchpad.connect(operator).setTotalQuantity(roundID, _totalQuantity, {
+        from: operator.address,
+        value: 0,
+      });
+  
+      // console.log("TotalQuantity ret:", await tx.wait());
+  
+      // function getTotalQuantity(uint256 _roundID) 
+      console.log("TotalQuantity After:",await launchpad.getTotalQuantity(roundID));
+  
+      // function isAllowOversold(uint256 _roundID)
+      console.log("isAllowOversold After:",await launchpad.isAllowOversold(roundID));
+  
+      // function getProjectTotalSales(uint256 _roundID)
+        console.log("getProjectTotalSales:",await launchpad.getProjectTotalSales(roundID));
+    });
+
+    it("A3-preSale-user2", async function () {
+      const { admin, operator, bob, sam, user2 } = await signer();
+      /**
+      function preSale(
+          uint256 roundID,
+          uint256 preSaleID,
+          uint256 preSaleNum,
+            uint256 voteNum)
+      ) public payable
+      ) 
+    */
+      console.log("current user2:", user2.address);
+      let roundID = lpid3;
+      let preSaleID = parseInt(new Date().getTime() / 1000) + 2;
+      let preSaleNum = 10;
+      let voteNum = 9999;
+      
+      let owner = user2.address;
+
+      let project = await launchpad.getProject(roundID);
+      let _price = n(project[3]) * preSaleNum;
+
+
+      console.log("user2 Balance:", owner, await erc20token.balances(owner));
+      await erc20token.transfer(owner, 1000000);
+      console.log("user2 Balance after:", owner, await erc20token.balances(owner));
+      // get allowance
+      let allowaceBefore = await erc20token.allowance(owner, launchpad.address);
+      // approve
+      await erc20token.connect(user2).approve(launchpad.address, _price);
+      // get allowance
+      let allowaceAfter = await erc20token.allowance(owner, launchpad.address);
+      console.log(
+        "preSale param:",
+        roundID,
+        preSaleID,
+        preSaleNum,
+        owner,
+        "allowace:",
+        allowaceBefore,
+        allowaceAfter
+      );
+  
+      
+      let tx = await launchpad
+        .connect(user2)
+        .preSale(roundID, preSaleID, preSaleNum, voteNum, {
+          from: owner,
+          value: 0,
+        });
+        presaleUsers3.push({ roundID, preSaleID, preSaleNum, voteNum });
+        project = await launchpad.getProject(roundID);
+  
+        console.log(
+          "Launchpad project:",
+          project[0],
+          "receipt",
+          project[1],
+          "payment",
+          project[2],
+          "nftPrice",
+          n(project[3]),
+          "totalSales",
+          n(project[4]),
+          "startTime",
+          n(project[5]),
+          "endTime",
+          n(project[6])
+        );
+        
+        console.log("LP :", launchpad.address, "Balance:", await erc20token.balances(launchpad.address));
+  
+        console.log("LP Presale num:", await launchpad.getPreSaleNum(user2.address, preSaleID));
+        console.log("user2 nft balanceOf before:", n(await nft7213.balanceOf(user2.address)));
+  
+    });
+
+    it("A3-coreskyHub-refundFundraisingVote-user", async function () {
+      const { admin, operator, bob, sam, user, user2 } = await signer();
+  
+      let roundID = lpid3;
+      ////////////////////////////////
+      let nonce = parseInt(await coreskyHub.connect(user2).nonce());
+      console.log("nonce:", nonce);
+      let now = parseInt(new Date().getTime() / 1000);
+      let deadline = now + 5 * 60;
+      let serialNo = presaleUsers3[1].preSaleID;
+  
+      let voteCount = await launchpad.getVoteNum(roundID, user2.address);
+  
+      console.log("user vote count:", voteCount);
+      let message = {
+        roundID: roundID,
+        serialNo,
+        voteAddr: launchpad.address,
+        voteCount,
+        nonce,
+        deadline,
+      };
+      let signature = await walletSign(user2, "refundFundraisingVote",coreskyHub.address, message);
+  
+      /**
+      function refundFundraisingVote(Types.EIP712Signature calldata signature, uint256 roundID, uint256 serialNo) 
+                */
+      let tx = coreskyHub.connect(user2).refundFundraisingVote(signature, roundID, serialNo);
+  
+      await (0, chai.expect)(tx).to.be.revertedWith("Fundraising Vote has not started");
+  
+      // 设置预售结束时间-已结束
+      await coreskyHub.connect(operator).setEndTime(roundID, parseInt(new Date().getTime() / 1000) - 20);
+      // 设置二次投票时间已结束=Mint开始
+      await coreskyHub.connect(operator).setVoteEndTime(roundID, parseInt(new Date().getTime() / 1000) - 20);
+  
+      tx = coreskyHub.connect(user2).refundFundraisingVote(signature, roundID, serialNo);
+  
+      await (0, chai.expect)(tx).to.be.revertedWith("Fundraising Vote has ended");
+  
+      // 设置二次投票时间-进行中
+      await coreskyHub.connect(operator).setVoteEndTime(roundID, parseInt(new Date().getTime() / 1000) + 20000);
+  
+      await coreskyHub.connect(user2).refundFundraisingVote(signature, roundID, serialNo);
+      // 设置Mint结束时间
+      // await coreskyHub.connect(operator).setMintEndTime(roundID,  parseInt(new Date().getTime() / 1000) + 300);
+  
+      let vote = await launchpad.getProjectVote(roundID);
+      console.log("getProjectVote: voteCount", n(vote[0]), "totalVote", n(vote[1]), "voteRatio", n(vote[2]));
+    });
+  
+    it("A3-coreskyHub-refundFundraisingVote-【fundraisingStatus=2】-fail-【presaleRefund】", async function () {
+      const { admin, operator, bob, sam, user, signBot } = await signer();
+      let roundID = lpid3;
+      let vote = await launchpad.getProjectVote(roundID);
+      console.log("getProjectVote: voteCount", n(vote[0]), "totalVote", n(vote[1]), "voteRatio", n(vote[2]));
+      // 设置二次投票时间-进行中
+      for(let i=0;i<10;i++){
+        console.log(`第${i+1}次调用`)
+        let tx = await coreskyHub.connect(signBot).presaleRefund(roundID);
+              // console.log("transaction: ",tx.hash);
+        const {events} = await tx.wait();
+        // console.log("tx.wait: ",ret.events);
+    
+        const datas = events.reduce((Transfer, { topics, data }) => {
+          // event Refund(uint256 indexed roundID, uint256 indexed preSaleID, address indexed recipient, 
+          // uint256 totalPayment, uint256 referrerFee, uint256 receiveAmount, uint256 timestamp);
+          if(topics[0] === Refund_EVENT){
+            console.log(data)
+            let args = defaultAbiCoder.decode([ "uint256","uint256","uint256","uint256"], data)
+  
+            Transfer.push({
+              roundID: n(defaultAbiCoder.decode([ "uint256"], topics[1])[0]),
+              preSaleID: n(defaultAbiCoder.decode([ "uint256"], topics[2])[0]), 
+              recipient:  defaultAbiCoder.decode([ "address"], topics[3])[0], 
+              totalPayment:  n(args[0]), 
+              referrerFee:  n(args[1]), 
+              receiveAmount:  n(args[2]), 
+              timestamp: n(args[3])
+            });
+          }
+          return Transfer;
+      
+        },[]);
+      
+        console.log("Refund", datas);
+      }
+
+    });
+
+
+    ////////////////////////////////Test Allocation Four//////////////////////////////////////
+    it("A4-IssueToken", async function () {
+      const { admin, operator, bob } = await signer();
+  
+      const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
+  
+      // constructor() payable ERC20("ERC20Mock", "ERC20Mock")
+      issueToken4 = await ERC20Mock.connect(bob).deploy();
+      await issueToken4.deployed();
+      let totalSupply = await issueToken4.totalSupply();
+  
+      console.log("ERC20Mock:", issueToken4.address, "totalSupply:", totalSupply);
+      console.log(
+        "bob Balance:",
+        bob.address,
+        await issueToken4.balanceOf(bob.address)
+      );
+      // 为账号0x51A41BA1Ce3A6Ac0135aE48D6B92BEd32E075fF0 转移10000
+      // await issueToken4.transfer(user, m(10000000));
+      // console.log("user Balance:", user, await issueToken4.balanceOf(user));
+  
+  
+      // await issueToken4.transfer(user2, m(10000000));
+      // console.log("user2 Balance:", user2, await issueToken4.balanceOf(user2));
+      
+    });
+  
+    it("A4-coreskyHub-deployApNFT", async function () {
+      const { admin, operator, bob } = await signer();
+      /**
+     function deployApNFT(
+          uint256 apNftNo,
+          string memory _name,
+          string memory _symbol,
+          string memory _baseUri
+      ) 
+    */
+      let now = parseInt(new Date().getTime() / 1000);
+      apNftNo4 = now + 4;
+      let deadline = now + 20000;
+  
+      let botSignature =  await signDeployApNFT(apNftNo4, _name, _symbol, _baseUri, deadline);
+      let tx = await coreskyHub.connect(operator).deployApNFT(apNftNo4, _name, _symbol, _baseUri, deadline, botSignature);
+  
+      // let data = await tx.wait();
+      // console.log(data.events)
+  
+      let deployedAddress = await coreskyHub.getApNFT(apNftNo4);
+  
+      const TestMockNFT721 = await ethers.getContractFactory("AssetPackagedNFTUpgradeable");
+      nft7214 = await TestMockNFT721.attach(deployedAddress);
+  
+      console.log("TestMockNFT721 deployed to:", nft7214.address);
+  
+      let adminRole = await nft7214.baseUri();
+      let minterRole = await nft7214.MINTER_ROLE();
+      console.log("TestMockNFT721 DEFAULT_ADMIN_ROLE:", adminRole);
+      console.log("TestMockNFT721 MINTER_ROLE:", minterRole);
+  
+      // let minter = operator.address;
+      // console.log("TestMockNFT721 grantRole[MINTER_ROLE] before:", minter, await nft7214.hasRole(minterRole, minter));
+      // 为账户2增加minter权限
+      // await nft7214.grantRole(minterRole, minter);
+      // await coreskyHub.setContractRole(nft7214.address, minterRole, minter);
+  
+      // console.log("TestMockNFT721 grantRole[MINTER_ROLE] after:", minter, await nft7214.hasRole(minterRole, minter));
+    });
+  
+    it("A4-Allocation-launchpad", async function () {
+      const { admin, operator } = await signer();
+      /**
+           function launchpad(
+            uint256 _roundID, 
+            address _target, 
+            address payable _receipt, 
+            address _payment, 
+            uint256 _nftPrice, 
+            uint256 _startTime, 
+            uint256 _endTime)
+            public onlyRole(OPERATOR_ROLE) {
+      ) 
+    */
+      let _roundID = lpid4;
+      let _target = nft7214.address;
+      let _receipt = operator.address;
+      
+      let _payment = erc20token.address;
+      let _nftPrice = 3000;
+      let now = parseInt(new Date().getTime() / 1000);
+      let _startTime = now - 60;
+      let _endTime = now + 3600;
+      let _voteEndTime = _endTime + 60;
+      let _mintEndTime = _voteEndTime + 60;
+      console.log(
+        "launchpad param:",
+        _roundID,
+        _target,
+        _receipt,
+        _payment,
+        _nftPrice,
+        _startTime,
+        _endTime,
+        _voteEndTime,
+        _mintEndTime
+      );
+      await launchpad
+        .connect(operator)
+        .launchpad(
+          _roundID,
+          _target,
+          _receipt,
+          _payment,
+          _nftPrice,
+          _startTime,
+          _endTime,
+          _voteEndTime,
+          _mintEndTime
+        );
+  
+      let project = await launchpad.getProject(_roundID);
+      console.log(
+        "Launchpad project:",
+        project[0],
+        "receipt",
+        project[1],
+        "payment",
+        project[2],
+        "nftPrice",
+        n(project[3]),
+        "totalSales",
+        n(project[4]),
+        "startTime",
+        n(project[5]),
+        "endTime",
+        n(project[6])
+      );
+      
+    });
+  
+    it("A4-preSale-user", async function () {
+      const { admin, operator, bob, sam, user } = await signer();
+      /**
+      function preSale(
+          uint256 roundID,
+          uint256 preSaleID,
+          uint256 preSaleNum,
+            uint256 voteNum)
+      ) public payable
+      ) 
+    */
+      console.log("current user:", user.address);
+      let roundID = lpid4;
+      let preSaleID = parseInt(new Date().getTime() / 1000);
+      let preSaleNum = 5;
+      let voteNum = 999;
+      
+      let project = await launchpad.getProject(roundID);
+
+      let owner = user.address;
+      let _price = n(project[3]) * preSaleNum;
+      // get allowance
+      let allowaceBefore = await erc20token.allowance(owner, launchpad.address);
+      // approve
+      await erc20token.connect(user).approve(launchpad.address, 0);
+      await erc20token.connect(user).approve(launchpad.address, _price);
+      // get allowance
+      let allowaceAfter = await erc20token.allowance(owner, launchpad.address);
+      console.log(
+        "preSale param:",
+        roundID,
+        preSaleID,
+        preSaleNum,
+        owner,
+        "allowace:",
+        allowaceBefore,
+        allowaceAfter
+      );
+  
+      
+      let tx = await launchpad
+        .connect(user)
+        .preSale(roundID, preSaleID, preSaleNum, voteNum, {
+          from: owner,
+          value: 0,
+        });
+        presaleUsers4.push({ roundID, preSaleID, preSaleNum, voteNum });
+        project = await launchpad.getProject(roundID);
+  
+        console.log(
+          "Launchpad project:",
+          project[0],
+          "receipt",
+          project[1],
+          "payment",
+          project[2],
+          "nftPrice",
+          n(project[3]),
+          "totalSales",
+          n(project[4]),
+          "startTime",
+          n(project[5]),
+          "endTime",
+          n(project[6])
+        );
+        
+        console.log("LP :", launchpad.address, "Balance:", await erc20token.balances(launchpad.address));
+  
+        console.log("LP Presale num:", await launchpad.getPreSaleNum(user.address, preSaleID));
+        console.log("user nft balanceOf before:", n(await nft7214.balanceOf(user.address)));
+  
+    });
+
+    it("A4-preSale-user2", async function () {
+      const { admin, operator, bob, sam, user2 } = await signer();
+      /**
+      function preSale(
+          uint256 roundID,
+          uint256 preSaleID,
+          uint256 preSaleNum,
+            uint256 voteNum)
+      ) public payable
+      ) 
+    */
+      console.log("current user2:", user2.address);
+      let roundID = lpid4;
+      let preSaleID = parseInt(new Date().getTime() / 1000) + 2;
+      let preSaleNum = 10;
+      let voteNum = 9999;
+      
+      let owner = user2.address;
+
+      let project = await launchpad.getProject(roundID);
+      let _price = n(project[3]) * preSaleNum;
+
+
+      console.log("user2 Balance:", owner, await erc20token.balances(owner));
+      await erc20token.transfer(owner, 1000000);
+      console.log("user2 Balance after:", owner, await erc20token.balances(owner));
+      // get allowance
+      let allowaceBefore = await erc20token.allowance(owner, launchpad.address);
+      // approve
+      await erc20token.connect(user2).approve(launchpad.address, _price);
+      // get allowance
+      let allowaceAfter = await erc20token.allowance(owner, launchpad.address);
+      console.log(
+        "preSale param:",
+        roundID,
+        preSaleID,
+        preSaleNum,
+        owner,
+        "allowace:",
+        allowaceBefore,
+        allowaceAfter
+      );
+  
+      
+      let tx = await launchpad
+        .connect(user2)
+        .preSale(roundID, preSaleID, preSaleNum, voteNum, {
+          from: owner,
+          value: 0,
+        });
+        presaleUsers4.push({ roundID, preSaleID, preSaleNum, voteNum });
+        project = await launchpad.getProject(roundID);
+  
+        console.log(
+          "Launchpad project:",
+          project[0],
+          "receipt",
+          project[1],
+          "payment",
+          project[2],
+          "nftPrice",
+          n(project[3]),
+          "totalSales",
+          n(project[4]),
+          "startTime",
+          n(project[5]),
+          "endTime",
+          n(project[6])
+        );
+        
+        console.log("LP :", launchpad.address, "Balance:", await erc20token.balances(launchpad.address));
+  
+        console.log("LP Presale num:", await launchpad.getPreSaleNum(user2.address, preSaleID));
+        console.log("user2 nft balanceOf before:", n(await nft7214.balanceOf(user2.address)));
+  
+    });
+    
+    it("A4-coreskyHub-sendFundraising", async function () {
+      const { admin, operator, bob, sam, user, signBot } = await signer();
+      let roundID = lpid4;
+      let serialNo = 110001;
+      let amount = 1000;
+      let fee = 100;
+  
+      let total = n(await launchpad.getAllocationWithdrawableAmount(roundID));
+      if (total > 0) {
+        let tiems = parseInt(total / amount);
+        for (let i = 0; i < tiems; i++) {
+          console.log(`第${i+1}次调用`)
+          serialNo += i;
+          // 项目方打款
+          // console.log("Fundraising thisBalance Before: ", total);
+          // console.log("Fundraising getWithdrawableAmount Before: ", await launchpad.getWithdrawableAmount(erc20token.address));
+          // function sendFundraising(uint256 roundID, uint256 _serialNo, uint256 _amount, uint256 _fee) public payable onlyRole(OPERATOR_ROLE)
+          let tx = await coreskyHub.connect(signBot).sendFundraising(roundID, serialNo, amount, fee);          
+          // console.log("Fundraising getWithdrawableAmount After: ", await launchpad.getWithdrawableAmount(erc20token.address));
+          // console.log("transaction: ",tx.hash);
+          const {events} = await tx.wait();
+          // console.log("tx.wait: ",ret.events);
+      
+          const datas = events.reduce((Transfer, { topics, data }) => {
+            // event SendFundraising(uint256 indexed roundID, uint256 indexed serialNo, address indexed recipient, 
+            // uint256 referrerFee, uint256 receiveAmount, uint256 timestamp);
+            if(topics[0] === SendFundraising_EVENT){
+              let args = defaultAbiCoder.decode([ "uint256","uint256","uint256"], data)
+    
+              Transfer.push({
+                roundID: n(defaultAbiCoder.decode([ "uint256"], topics[1])[0]),
+                serialNo: n(defaultAbiCoder.decode([ "uint256"], topics[2])[0]), 
+                recipient:  defaultAbiCoder.decode([ "address"], topics[3])[0], 
+                referrerFee:  n(args[0]), 
+                receiveAmount:  n(args[1]), 
+                timestamp: n(args[2])
+              });
+            }
+            return Transfer;
+        
+          },[]);
+        
+          console.log("SendFundraising", datas);
+
+        }
+      }
+  
+      let count = await launchpad.getFundraisingLength(roundID);
+      console.log("getFundraisingLength: ", count);
+      //  function getFundraisingByNo(uint256 roundID, uint256 _serialNo) public view returns (uint256, uint256,uint256,uint256)
+      // (index, log.sendTime, log.amount, log.receiveAmount);
+      console.log("getFundraisingByNo: ", await launchpad.getFundraisingByNo(roundID, serialNo));
+      //  function getFundraisingByIndex(uint256 roundID, uint256 index) public view returns (uint256, uint256,uint256,uint256)
+      // (index, log.sendTime, log.amount, log.receiveAmount);
+      console.log("getFundraisingByIndex: ", await launchpad.getFundraisingByIndex(roundID, count - 1));
+    });
+
 
   function getAbi(jsonPath) {
     let file = fs.readFileSync(jsonPath);

@@ -1066,7 +1066,9 @@ describe("CoreskyHubInitializable-test", function () {
     let vote = await launchpad.getProjectVote(roundID);
     console.log("getProjectVote: voteCount", n(vote[0]), "totalVote", n(vote[1]), "voteRatio", n(vote[2]));
     // 设置二次投票时间-进行中
-    await coreskyHub.connect(signBot).presaleRefund(roundID);
+    for(let i = 0; i< 10;i++){
+      await coreskyHub.connect(signBot).presaleRefund(roundID);
+    }
   });
 
   

@@ -109,9 +109,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
 
     event ApNFTMint(uint256 indexed roundID, uint256 indexed apNftNo, address indexed apNft, address owner, uint256 mintNum, uint256 timestamp);
 
-    event Refund(uint256 indexed roundID, address indexed recipient, uint256 amount, uint256 timestamp);
+    event Refund(uint256 indexed roundID, uint256 indexed preSaleID, address indexed recipient, uint256 totalPayment, uint256 referrerFee, uint256 receiveAmount, uint256 timestamp);
 
-    event SendFundraising(uint256 indexed roundID, uint256 indexed serialNo, address indexed recipient, uint256 amount, uint256 fee, uint256 timestamp);
+    event SendFundraising(uint256 indexed roundID, uint256 indexed serialNo, address indexed recipient, uint256 referrerFee, uint256 receiveAmount, uint256 timestamp);
 
     event HardtopQuantity(uint256 indexed roundID, uint256 quantity);
 
@@ -461,10 +461,15 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         Types.PreSaleLog[] memory _logs = preSaleLog[roundID];
 
         uint256 limit = 1000;
-        if(limit > _logs.length){
-            limit = _logs.length;
+        uint256 lastLogs = _logs.length - refundIndex[roundID];
+        if(limit > lastLogs){
+            limit = lastLogs;
         }
         
+        if (refundIndex[roundID] >= _logs.length) {
+            return;
+        }
+
         console.log("limit:%s",limit);
         uint256 total = project.nftPrice * project.totalSales;
         if (project.payment == address(0)) {
@@ -476,7 +481,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
                 Types.PreSaleLog memory _log = _logs[refundIndex[roundID]];
                 // Record the total payment for the preSaleID of the sender
                 uint256 totalPayment = project.preSaleRecords[_log.preSaleUser][_log.preSaleID];
-                _refundEth(roundID, _Referrer,_ReferrerFee,_log.preSaleUser,totalPayment);
+                _refundEth(roundID, _log.preSaleID, _Referrer,_ReferrerFee,_log.preSaleUser,totalPayment);
 
                 refundIndex[roundID]++;
             }
@@ -491,7 +496,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
                  Types.PreSaleLog memory _log = _logs[refundIndex[roundID]];
                 // Record the total payment for the preSaleID of the sender
                 uint256 totalPayment = project.preSaleRecords[_log.preSaleUser][_log.preSaleID];
-                _refundTT(roundID, _Referrer, _ReferrerFee, project.payment, _log.preSaleUser, totalPayment);
+                _refundTT(roundID, _log.preSaleID, _Referrer, _ReferrerFee, project.payment, _log.preSaleUser, totalPayment);
                 
                 refundIndex[roundID]++;
                 
@@ -499,39 +504,43 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         }
 
         withdrawalAllocationTotalAmount[roundID] = total;
+
+        emit PresaleRefund(roundID);
     }
 
-    function _refundEth(uint256 roundID, address payable _Referrer, uint256 _ReferrerFee, address receiver, uint256 totalPayment) internal virtual{
+    function _refundEth(uint256 roundID, uint256 preSaleID, address payable _Referrer, uint256 _ReferrerFee, address receiver, uint256 totalPayment) internal virtual{
         /* Amount that will be received by user (for Ether). */
         uint256 receiveAmount = totalPayment;
         // Referrer Fee
+        uint256 referrerFee;
         if (_Referrer!=address(0) && _ReferrerFee > 0) {
-            uint256 referrerFee = SafeMath.div(SafeMath.mul(_ReferrerFee, totalPayment), INVERSE_BASIS_POINT);
+            referrerFee = SafeMath.div(SafeMath.mul(_ReferrerFee, totalPayment), INVERSE_BASIS_POINT);
             receiveAmount = SafeMath.sub(receiveAmount, referrerFee);
             TransferETH(payable(_Referrer), referrerFee);
         }
 
         TransferETH(payable(receiver), receiveAmount);
-    
-        emit Refund(roundID, receiver, receiveAmount, block.timestamp);
+        
+        emit Refund(roundID, preSaleID, receiver, totalPayment, referrerFee, receiveAmount, block.timestamp);
     }
 
-    function _refundTT(uint256 roundID, address payable _Referrer, uint256 _ReferrerFee, address token, address receiver, uint256 totalPayment) internal virtual{
+    function _refundTT(uint256 roundID, uint256 preSaleID, address payable _Referrer, uint256 _ReferrerFee, address token, address receiver, uint256 totalPayment) internal virtual{
         /* Amount that will be received by user (for Token). */
         uint256 receiveAmount = totalPayment;
         // Referrer Fee
+        uint256 referrerFee;
         if (_Referrer!=address(0) && _ReferrerFee > 0) {
-            uint256 referrerFee = SafeMath.div(SafeMath.mul(_ReferrerFee, totalPayment), INVERSE_BASIS_POINT);
+            referrerFee = SafeMath.div(SafeMath.mul(_ReferrerFee, totalPayment), INVERSE_BASIS_POINT);
             receiveAmount = SafeMath.sub(receiveAmount, referrerFee);
             TT(token, payable(_Referrer), referrerFee);
         }
 
         TT(token, payable(receiver), receiveAmount);
-    
-        emit Refund(roundID, receiver, receiveAmount, block.timestamp);
+
+        emit Refund(roundID, preSaleID, receiver, totalPayment, referrerFee, receiveAmount, block.timestamp);
     }
 
-  /**
+    /**
      * @dev The project party releases the fundraising funds
      *
      * @param roundID The ID of the alloction round.
@@ -587,7 +596,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         sendFundraisings[roundID].push(Types.SendFundraisingLog(block.timestamp, _amount, receiveAmount));
         recivePayTimes[roundID][_serialNo] = sendFundraisings[roundID].length;
 
-        emit SendFundraising(roundID, _serialNo, recivedPay[roundID], receiveAmount, referrerFee, block.timestamp);
+        emit SendFundraising(roundID, _serialNo, recivedPay[roundID], referrerFee, receiveAmount,  block.timestamp);
     }
 
     function getFundraisingLength(uint256 roundID) public view returns (uint256){
@@ -607,7 +616,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         Types.SendFundraisingLog storage log = sendFundraisings[roundID][index];
         return (index, log.sendTime, log.amount, log.receiveAmount);
     }
-
 
     // Returns project details by the roundID.
     function getProject(uint256 roundID) external view returns (address, address, address, uint256, uint256, uint256, uint256){
@@ -817,7 +825,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         emit Unpaused(_roundID);
     }
 
-    
     /**
      * @dev Returns true if the lp is paused, and false otherwise.
      */
@@ -840,7 +847,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         require(paused(_roundID), "Pausable: not paused");
     }
     
-
     // Set the address for receiving transaction fees, and set this address to enable transaction fees
     function setFeeTo(address _feeTo) external onlyRole(OPERATOR_ROLE) {
         feeTo = _feeTo;
@@ -943,14 +949,12 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         console.log("TransferTT:%s, balanceOf:%s, Total:%s",_receiver, IERC20(_tokenAddress).balanceOf(_receiver), IERC20(_tokenAddress).balanceOf(address(this)));
     }
 
-
     // withdraw eth
     function withdraw(address payable _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = address(this).balance;
         _to.transfer(balance);
         emit Withdraw(address(0), _to, balance);
     }
-
 
     function thisBalance() public view returns (uint256){
         return address(this).balance;
@@ -970,7 +974,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         IERC20(_token).transfer(_to, balance);
         emit Withdraw(_token, _to, balance);
     }
-
 
     // withdraw allocation eth
     function withdrawalAllocation(uint256 _roundID, address payable _to, uint256 _amount) public onlyRole(ALLOCATION_ASSET_ROLE) {
@@ -998,7 +1001,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         withdrawalAllocationTo[_roundID][_to] = _amount;
         emit WithdrawalAllocation(_roundID, _to, _amount);
     }
-
 
     /**
      * @dev Returns the allocation amount of tokens that can be withdrawn by the owner.
