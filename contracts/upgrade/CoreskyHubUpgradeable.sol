@@ -236,6 +236,7 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         StorageLib.getAllocationOwner()[allocation] = msg.sender;
         StorageLib.allAllocations().push(allocation);
         StorageLib.groupAllocations()[_groupID].push(allocation);
+        StorageLib.getAllocationNFT()[allocation] = _target;
     }
 
     function _allocation(uint256 _roundID) internal view returns (address){
