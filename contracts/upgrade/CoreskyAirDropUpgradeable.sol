@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "hardhat/console.sol";
 
 
 error AlreadyDroped();
@@ -166,7 +165,6 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
             uint256 afterValue = 0;
             for (uint256 i = 0; i < _to.length; i++) {
                 afterValue = afterValue + _value[i];
-                console.log("sendERC20Token from: %s to %s, send value:%s",msg.sender, _to[i], _value[i]);
                 assert(payable(_to[i]).send(_value[i]));
                 emitAirDropToken(_batchNo,_tokenAddress,_to[i], _value[i], _serialNo[i]);
             }
@@ -184,12 +182,10 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
                 total += _value[i];
             }
             
-            console.log("sendERC20Token allowed %s value:%s, pay total:%s",address(this), allowed, total);
             require(total <= allowed, "ERC20 Token Insufficient limit");
 
             for (uint256 i = 0; i < _to.length; i++) {
                 uint256 amount =  _value[i];
-                console.log("sendERC20Token from: %s to %s, value:%s",msg.sender, _to[i], amount);
                 token.safeTransferFrom(msg.sender, _to[i], amount);
                 emitAirDropToken(_batchNo,_tokenAddress,_to[i], _value[i], _serialNo[i]);
             }
@@ -241,7 +237,6 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
 
         for (uint256 i = 0; i < _to.length; i++) {
             uint256 amount =  _value[i];
-            console.log("sendERC20Token safeTransfer to %s, value:%s", _to[i], amount);
             token.safeTransfer(_to[i], amount);
             emitAirDropToken(_batchNo,_tokenAddress,_to[i], _value[i], _serialNo[i]);
         }
@@ -318,7 +313,7 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
      */
     function withdrawToken(address _token, address _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = getWithdrawableAmount(_token);
-        IERC20(_token).transfer(_to, balance);
+        IERC20(_token).safeTransfer(_to, balance);
     }
 
     /**

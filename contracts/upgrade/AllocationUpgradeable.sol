@@ -11,8 +11,6 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "../interfaces/IApNFT.sol";
 import "../libraries/Types.sol";
 
-import "hardhat/console.sol";
-
 contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     using SafeMath for uint256;
@@ -127,7 +125,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      * @dev initialize the contract by setting a `admin_` and a `operator_` to the Alloction.
      */
     function initialize(address admin_, address operator_) external initializer{
-        console.log("initialize admin_: %s, operator_: %s", admin_, operator_ );
         require(!_initialized, "Initialized");
 
         __ReentrancyGuard_init();
@@ -190,11 +187,13 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      */
     function allocation(uint256 _groupID, uint256 _roundID, address _target, address _receipt, address _payment, uint256 _nftPrice, uint256 _startTime, uint256 _endTime, uint256 _voteEndTime, uint256 _mintEndTime, uint256 _totalQuantity) public onlyRole(OPERATOR_ROLE) {
 
+        require(_endTime > _startTime, "Invalid start or end time");
         require(maxAlloctionLimit >= groupRoundIDs[_groupID].length, "Project limit of 2");
         require(_endTime > block.timestamp, "Invalid time");
         require(_target != address(0), "Invalid target");
         require(_receipt != address(0), "Invalid receipt");
         require(_nftPrice > 0, "nftPrice > 0");
+        require(recivedPay[_roundID] == address(0), "Recive payment address already set");
 
         // create allocation
         Types.Project storage project = round[_roundID];
@@ -384,11 +383,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
 
         require(roundID > 0, "project is empty");
         Types.Project storage project = round[roundID];
-
-        console.log(" block.time:%s",block.timestamp);
-        console.log("  startTime:%s",project.startTime);
-        console.log("    endTime:%s",project.endTime);
-        console.log("voteEndTime:%s",voteEndTime[roundID]);
         // Verify time
         require(project.startTime <= block.timestamp, "Activity has not started");
         require(project.endTime <= block.timestamp, "Fundraising Vote has not started");
@@ -451,7 +445,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         require(roundID > 0, "project is empty");
         // Verify time
         if(fundraisingStatus[roundID] != Types.FundraisingStatus.Fail){
-            console.log("presaleRefund return.");
             return;
         }
 
@@ -463,11 +456,8 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         if(limit > _logs.length){
             limit = _logs.length;
         }
-        
-        console.log("limit:%s",limit);
         uint256 total = project.nftPrice * project.totalSales;
         if (project.payment == address(0)) {
-             console.log("project.eth:%s",project.payment);
             require(address(this).balance >= total, "Insufficient amount token");
             // Iterate over each recipient and transfer the corresponding amount of tokens
             uint256 i;
@@ -480,7 +470,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
                 refundIndex[roundID]++;
             }
         } else {
-            console.log("project.token:%s",project.payment);
             require(msg.value == 0, "Needn't pay mainnet token");
             // Iterate over each recipient and transfer the corresponding amount of tokens
             IERC20 _token = IERC20(project.payment);
@@ -761,7 +750,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         require(project.totalSales <= _totalQuantity, "Project total quantity needs to be greater than the total pre-sale amount");
         totalQuantity[_roundID] = _totalQuantity;
         allowOversold[_roundID] = (_totalQuantity > 0);
-        console.log("Project [%s], _totalQuantity: %s", _roundID,totalQuantity[_roundID]);
         
         emit HardtopQuantity(_roundID, _totalQuantity);
     }
@@ -828,7 +816,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      * @dev Throws if the contract is paused.
      */
     function _requireNotPaused(uint256 _roundID) internal view virtual {
-        console.log("Pausable: paused: %s", paused(_roundID));
         require(!paused(_roundID), "Pausable: paused");
     }
 
@@ -931,15 +918,11 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     }
 
     function TransferETH(address payable _receiver, uint256 _Amount) internal {
-        console.log("TransferETH:%s, _Amount:%s",_receiver, _Amount);
         assert(payable(_receiver).send(_Amount));
-        console.log("TransferETH:%s, balance:%s, Total:%s",_receiver, _receiver.balance, address(this).balance);
     }
 
     function TT(address _tokenAddress, address payable _receiver, uint256 _Amount) internal {
-        console.log("TransferTT:%s, _Amount:%s",_receiver, _Amount);
         IERC20(_tokenAddress).safeTransfer(_receiver, _Amount);
-        console.log("TransferTT:%s, balanceOf:%s, Total:%s",_receiver, IERC20(_tokenAddress).balanceOf(_receiver), IERC20(_tokenAddress).balanceOf(address(this)));
     }
 
 
@@ -966,7 +949,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     // withdraw token
     function withdrawToken(address _token, address _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = getWithdrawableAmount(_token);
-        IERC20(_token).transfer(_to, balance);
+        IERC20(_token).safeTransfer(_to, balance);
         emit Withdraw(_token, _to, balance);
     }
 
@@ -990,7 +973,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
             _to.transfer(_amount);
         } else {
             uint256 balance = IERC20(project.payment).balanceOf(address(this));
-            console.log("balance %s, amount %s", balance, _amount);
             require(balance >= _amount, "The withdrawal token amount for this allocation is insufficient");
             IERC20(project.payment).safeTransfer(_to, _amount);
         }

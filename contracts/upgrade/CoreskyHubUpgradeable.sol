@@ -22,7 +22,6 @@ import "../libraries/Events.sol";
 import "../libraries/Types.sol";
 import "../libraries/MetaTxLibUpgradeable.sol";
 import "../libraries/StorageLib.sol";
-import "hardhat/console.sol";
 contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, CoreHubStorage {
     
     using SafeMath for uint256;
@@ -204,12 +203,9 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         }
 
         // 创建新合约
-        console.log("PlatformAllocation: %s, this: %s", getPlatformAllocation(), address(this));
         allocation = Clones.clone(getPlatformAllocation());
-        console.log("CreateAllocation: %s", allocation);
         AllocationUpgradeable all = AllocationUpgradeable(payable(allocation));
         all.initialize(address(this), address(this));
-        console.log("CreateAllocation initialize: %s", address(this));
         uint256 _fee = StorageLib.getFee();
         address _feeTo = StorageLib.getFeeTo();
 
@@ -525,16 +521,13 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
      */
     function apNftMint(Types.EIP712Signature calldata signature, uint256 roundID) public nonReentrant {
         address targetAllocation = _allocation(roundID);
-        console.log("apNftMint: %s", targetAllocation);
         if(targetAllocation == address(0)){
             targetAllocation = getPlatformAllocation();
-            console.log("apNftMint getPlatformAllocation: %s", targetAllocation);
         }
         __checkAlloction(targetAllocation);
         
         address apnft = IAllocation(targetAllocation).getApNFTTarget(roundID);
         
-        console.log("apnft: %s", apnft);
         if(apnft == address(0)) {
             require(false, "ApNftDoesNotExist");
             // revert Errors.ApNftDoesNotExist();
@@ -542,15 +535,12 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         
         uint256 voteEndTime =  IAllocation(targetAllocation).getVoteEndTime(roundID);
 
-        console.log("apnft     voteEndTime: %s", voteEndTime);
-        console.log("apnft block timestamp: %s", block.timestamp);
         if(voteEndTime > 0 && voteEndTime >= block.timestamp){
             require(false, "MinNotStarted");
             // revert Errors.MinNotStarted();
         }
         uint256 mintEndTime =  IAllocation(targetAllocation).getMintEndTime(roundID);
 
-        console.log("apnft     mintEndTime: %s", mintEndTime);
         if(mintEndTime > 0 && mintEndTime <= block.timestamp){
             require(false, "MintHasEnded");
             // revert Errors.MintHasEnded();
@@ -559,7 +549,6 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         address user = msg.sender;
         uint256 totalPreSaleNum = IAllocation(targetAllocation).getPreSaleNumByUser(user, roundID);
         
-        console.log("apnft totalPreSaleNum: %s", totalPreSaleNum);
         if(totalPreSaleNum == 0) {
             require(false, "PreSaleDataDoseNotExist");
             // revert Errors.PreSaleDataDoseNotExist();
@@ -567,7 +556,6 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         uint256 lastMintNum;
         uint256 mintNum = IAllocation(targetAllocation).getMintNum(user, roundID);
 
-        console.log("apnft mintNum: %s", mintNum);
         if(totalPreSaleNum > mintNum){
             lastMintNum = totalPreSaleNum.sub(mintNum);
         } else {
@@ -577,15 +565,10 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
             lastMintNum = maxMintLimit;
         }
 
-        console.log("apnft1");
         // valide sign
         MetaTxLibUpgradeable.validateApNftMintSignature(signature, roundID, targetAllocation, lastMintNum);
-
-        console.log("apnft2");
-
         // function batchMint(address _to, uint256 _amount) external;
         IApNFT(apnft).batchMint(user, lastMintNum);
-        console.log("apnft batchMint: %s", apnft);
         // set NFT-mint num
         mintNum = mintNum.add(lastMintNum);
         IAllocation(targetAllocation).setMintNum(roundID, user, mintNum); 
