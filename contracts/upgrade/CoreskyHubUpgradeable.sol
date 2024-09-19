@@ -560,7 +560,8 @@ contract CoreskyHubUpgradeable is Initializable, AccessControlUpgradeable, Reent
         if(totalPreSaleNum > mintNum){
             lastMintNum = totalPreSaleNum.sub(mintNum);
         } else {
-            lastMintNum = totalPreSaleNum;
+            lastMintNum = 0;
+            require(false, "PreSaleDataDoseNotExist");
         }   
         if(lastMintNum > maxMintLimit) {
             lastMintNum = maxMintLimit;

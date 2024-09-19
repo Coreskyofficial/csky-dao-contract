@@ -60,7 +60,7 @@ contract VoteToolUpgradeable is Initializable, AccessControlUpgradeable {
     mapping(bytes32 =>uint8) public signMap;
 
     
-
+    event Withdraw(address indexed _token, address indexed _to, uint256 indexed _amount);
     event AddProposal(uint256 indexed proposal, address indexed from, uint256 expireTime);
     event Vote(address indexed from, uint256 indexed proposal, uint256 count, string voteType);
 
@@ -247,13 +247,19 @@ contract VoteToolUpgradeable is Initializable, AccessControlUpgradeable {
     }
 
     function withdraw(address payable _to) public onlyRole(ASSET_ROLE) {
-        _to.transfer(address(this).balance);
+        uint256 balance = address(this).balance;
+        // _to.transfer(balance);
+        (bool success, ) = _to.call{value: balance}("");
+        require(success, "Transfer failed.");
+        emit Withdraw(address(0), _to, balance);
+
     }
 
 
-    function withdrawToken(address _token, address to) public onlyRole(ASSET_ROLE) {
+    function withdrawToken(address _token, address _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = getWithdrawableAmount(_token);
-        IERC20(_token).transfer(to, balance);
+        IERC20(_token).safeTransfer(_to, balance);
+        emit Withdraw(_token, _to, balance);
     }
 
     /**

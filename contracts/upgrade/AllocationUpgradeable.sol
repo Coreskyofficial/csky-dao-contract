@@ -187,6 +187,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      */
     function allocation(uint256 _groupID, uint256 _roundID, address _target, address _receipt, address _payment, uint256 _nftPrice, uint256 _startTime, uint256 _endTime, uint256 _voteEndTime, uint256 _mintEndTime, uint256 _totalQuantity) public onlyRole(OPERATOR_ROLE) {
 
+        require(_roundID > 0, "Invalid roundID");
         require(_endTime > _startTime, "Invalid start or end time");
         require(maxAlloctionLimit >= groupRoundIDs[_groupID].length, "Project limit of 2");
         require(_endTime > block.timestamp, "Invalid time");
@@ -245,10 +246,13 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      */
     function launchpad(uint256 _roundID, address _target, address payable _receipt, address _payment, uint256 _nftPrice, uint256 _startTime, uint256 _endTime, uint256 _voteEndTime, uint256 _mintEndTime) public onlyRole(OPERATOR_ROLE) {
         
+        require(_roundID > 0, "Invalid roundID");
+        require(_endTime > _startTime, "Invalid start or end time");
         require(_endTime > block.timestamp, "Invalid time");
         require(_target != address(0), "Invalid target");
         require(_receipt != address(0), "Invalid receipt");
         require(_nftPrice > 0, "nftPrice > 0");
+        require(recivedPay[_roundID] == address(0), "Recive payment address already set");
 
         Types.Project storage project = round[_roundID];
         require(project.target == address(0), "Already setting");
@@ -926,7 +930,11 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     }
 
     function TransferETH(address payable _receiver, uint256 _Amount) internal {
-        assert(payable(_receiver).send(_Amount));
+        // assert(payable(_receiver).send(_Amount));
+        // This forwards all available gas. Be sure to check the return value!
+        (bool success, ) = _receiver.call{value: _Amount}("");
+        require(success, "Transfer failed.");
+
     }
 
     function TT(address _tokenAddress, address payable _receiver, uint256 _Amount) internal {
@@ -936,7 +944,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     // withdraw eth
     function withdraw(address payable _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = address(this).balance;
-        _to.transfer(balance);
+        // _to.transfer(balance);
+        (bool success, ) = _to.call{value: balance}("");
+        require(success, "Transfer failed.");
         emit Withdraw(address(0), _to, balance);
     }
 
@@ -975,13 +985,16 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         if(project.payment == address(0)){
             uint256 balance = address(this).balance;
             require(balance >= _amount, "The withdrawal amount for this allocation is insufficient");
-            _to.transfer(_amount);
+            // _to.transfer(_amount);
+            
+            (bool success, ) = _to.call{value: balance}("");
+            require(success, "Transfer failed.");
         } else {
             uint256 balance = IERC20(project.payment).balanceOf(address(this));
             require(balance >= _amount, "The withdrawal token amount for this allocation is insufficient");
             IERC20(project.payment).safeTransfer(_to, _amount);
         }
-        withdrawalAllocationTo[_roundID][_to] = _amount;
+        withdrawalAllocationTo[_roundID][_to] += _amount;
         emit WithdrawalAllocation(_roundID, _to, _amount);
     }
 

@@ -40,6 +40,8 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
     // searilNo => token 
     mapping(uint256=> address) public tokenMap;
 
+    event Withdraw(address indexed _token, address indexed _to, uint256 indexed _amount);
+    
     // deposit token event
     event DepositToken(address indexed token, uint256 amount, uint256 time, uint256 searilNo);
 
@@ -292,7 +294,11 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
      * 
      */
     function withdraw(address payable _to) public onlyRole(ASSET_ROLE) {
-        _to.transfer(address(this).balance);
+        uint256 balance = address(this).balance;
+        // _to.transfer(balance);
+        (bool success, ) = _to.call{value: balance}("");
+        require(success, "Transfer failed.");
+        emit Withdraw(address(0), _to, balance);
     }
 
    /**
@@ -314,6 +320,7 @@ contract CoreskyAirDropUpgradeable is Initializable, AccessControlUpgradeable {
     function withdrawToken(address _token, address _to) public onlyRole(ASSET_ROLE) {
         uint256 balance = getWithdrawableAmount(_token);
         IERC20(_token).safeTransfer(_to, balance);
+        emit Withdraw(_token, _to, balance);
     }
 
     /**
