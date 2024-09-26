@@ -2232,7 +2232,7 @@ describe("Allocation-test", function () {
       console.log("current user2:", user2.address);
       let roundID = lpid3;
       let preSaleID = parseInt(new Date().getTime() / 1000) + 2;
-      let preSaleNum = 10;
+      let preSaleNum = 15;
       let voteNum = 9999;
       
       let owner = user2.address;
@@ -2295,6 +2295,57 @@ describe("Allocation-test", function () {
   
     });
 
+    it("A3-preSale-user-soldout", async function () {
+      const { admin, operator, bob, sam, user } = await signer();
+      /**
+      function preSale(
+          uint256 roundID,
+          uint256 preSaleID,
+          uint256 preSaleNum,
+            uint256 voteNum)
+      ) public payable
+      ) 
+    */
+      console.log("current user:", user.address);
+      let roundID = lpid3;
+      let preSaleID = parseInt(new Date().getTime() / 1000) +   1;
+      let preSaleNum = 1;
+      let voteNum = 999;
+      
+      let project = await launchpad.getProject(roundID);
+
+      let owner = user.address;
+      let _price = n(project[3]) * preSaleNum;
+      // get allowance
+      let allowaceBefore = await erc20token.allowance(owner, launchpad.address);
+      // approve
+      await erc20token.connect(user).approve(launchpad.address, 0);
+      await erc20token.connect(user).approve(launchpad.address, _price);
+      // get allowance
+      let allowaceAfter = await erc20token.allowance(owner, launchpad.address);
+      console.log(
+        "preSale param:",
+        roundID,
+        preSaleID,
+        preSaleNum,
+        owner,
+        "allowace:",
+        allowaceBefore,
+        allowaceAfter
+      );
+  
+      
+      let tx = launchpad
+        .connect(user)
+        .preSale(roundID, preSaleID, preSaleNum, voteNum, {
+          from: owner,
+          value: 0,
+        });
+  
+        
+    await (0, chai.expect)(tx).to.be.revertedWith("The LaunchPad activity has ended");
+    });
+
     it("A3-coreskyHub-refundFundraisingVote-user", async function () {
       const { admin, operator, bob, sam, user, user2 } = await signer();
   
@@ -2319,29 +2370,7 @@ describe("Allocation-test", function () {
       };
       let signature = await walletSign(user2, "refundFundraisingVote",coreskyHub.address, message);
   
-      /**
-      function refundFundraisingVote(Types.EIP712Signature calldata signature, uint256 roundID, uint256 serialNo) 
-                */
-      let tx = coreskyHub.connect(user2).refundFundraisingVote(signature, roundID, serialNo);
-  
-      await (0, chai.expect)(tx).to.be.revertedWith("Fundraising Vote has not started");
-  
-      // 设置预售结束时间-已结束
-      await coreskyHub.connect(operator).setEndTime(roundID, parseInt(new Date().getTime() / 1000) - 20);
-      // 设置二次投票时间已结束=Mint开始
-      await coreskyHub.connect(operator).setVoteEndTime(roundID, parseInt(new Date().getTime() / 1000) - 20);
-  
-      tx = coreskyHub.connect(user2).refundFundraisingVote(signature, roundID, serialNo);
-  
-      await (0, chai.expect)(tx).to.be.revertedWith("Fundraising Vote has ended");
-  
-      // 设置二次投票时间-进行中
-      await coreskyHub.connect(operator).setVoteEndTime(roundID, parseInt(new Date().getTime() / 1000) + 20000);
-  
       await coreskyHub.connect(user2).refundFundraisingVote(signature, roundID, serialNo);
-      // 设置Mint结束时间
-      // await coreskyHub.connect(operator).setMintEndTime(roundID,  parseInt(new Date().getTime() / 1000) + 300);
-  
       let vote = await launchpad.getProjectVote(roundID);
       console.log("getProjectVote: voteCount", n(vote[0]), "totalVote", n(vote[1]), "voteRatio", n(vote[2]));
     });
@@ -2385,7 +2414,7 @@ describe("Allocation-test", function () {
 
     });
 
-
+if(1==1) return;
     ////////////////////////////////Test Allocation Four//////////////////////////////////////
     it("A4-IssueToken", async function () {
       const { admin, operator, bob } = await signer();

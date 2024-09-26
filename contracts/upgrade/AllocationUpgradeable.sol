@@ -310,6 +310,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         // If the total number is greater than 0, oversold is allowed
         if(allowOversold[roundID]){
             require(project.totalSales + preSaleNum <= totalQuantity[roundID], "The LaunchPad activity has sold out");
+            if(project.totalSales + preSaleNum >= totalQuantity[roundID]){
+                project.endTime = block.timestamp;
+            }
         }
 
         // Verify preSaleID and preSaleNum
