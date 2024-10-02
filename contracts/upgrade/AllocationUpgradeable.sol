@@ -22,6 +22,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     // Inverse basis point
     uint public constant INVERSE_BASIS_POINT = 10000;
 
+    // max refund limit
+    uint public MAX_REFUND_LIMIT;
+
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant ASSET_ROLE = keccak256("ASSET_ROLE");
     bytes32 public constant ALLOCATION_ASSET_ROLE = keccak256("ALLOCATION_ASSET_ROLE");
@@ -461,6 +464,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         Types.PreSaleLog[] memory _logs = preSaleLog[roundID];
 
         uint256 limit = 1000;
+        if(MAX_REFUND_LIMIT > 0 && MAX_REFUND_LIMIT < limit){
+            limit = MAX_REFUND_LIMIT;
+        }
         uint256 lastLogs = _logs.length - refundIndex[roundID];
         if(limit > lastLogs){
             limit = lastLogs;
@@ -470,9 +476,8 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
             return;
         }
 
-        uint256 total = project.nftPrice * project.totalSales;
+        uint256 total;
         if (project.payment == address(0)) {
-            require(address(this).balance >= total, "Insufficient amount token");
             // Iterate over each recipient and transfer the corresponding amount of tokens
             uint256 i;
             for (; i < limit; i++) {
@@ -480,32 +485,32 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
                 // Record the total payment for the preSaleID of the sender
                 uint256 totalPayment = project.preSaleRecords[_log.preSaleUser][_log.preSaleID];
                 _refundEth(roundID, _log.preSaleID, _Referrer,_ReferrerFee,_log.preSaleUser,totalPayment);
-
+                total += totalPayment;
                 refundIndex[roundID]++;
             }
         } else {
             require(msg.value == 0, "Needn't pay mainnet token");
             // Iterate over each recipient and transfer the corresponding amount of tokens
-            IERC20 _token = IERC20(project.payment);
-            require(_token.balanceOf(address(this)) >= total, "Insufficient amount token");
             uint256 i;
             for (; i < limit; i++) {
                  Types.PreSaleLog memory _log = _logs[refundIndex[roundID]];
                 // Record the total payment for the preSaleID of the sender
                 uint256 totalPayment = project.preSaleRecords[_log.preSaleUser][_log.preSaleID];
                 _refundTT(roundID, _log.preSaleID, _Referrer, _ReferrerFee, project.payment, _log.preSaleUser, totalPayment);
-                
+                total += totalPayment;
                 refundIndex[roundID]++;
                 
             }
         }
 
-        withdrawalAllocationTotalAmount[roundID] = total;
+        withdrawalAllocationTotalAmount[roundID] += total;
 
         emit PresaleRefund(roundID);
     }
 
     function _refundEth(uint256 roundID, uint256 preSaleID, address payable _Referrer, uint256 _ReferrerFee, address receiver, uint256 totalPayment) internal virtual{
+        
+        require(address(this).balance >= totalPayment, "Insufficient amount token");
         /* Amount that will be received by user (for Ether). */
         uint256 receiveAmount = totalPayment;
         // Referrer Fee
@@ -522,6 +527,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     }
 
     function _refundTT(uint256 roundID, uint256 preSaleID, address payable _Referrer, uint256 _ReferrerFee, address token, address receiver, uint256 totalPayment) internal virtual{
+        require(IERC20(token).balanceOf(address(this)) >= totalPayment, "Insufficient amount token");
         /* Amount that will be received by user (for Token). */
         uint256 receiveAmount = totalPayment;
         // Referrer Fee
@@ -1015,5 +1021,10 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     // Set the maximum number of projects created by the project team
     function setMaxAlloctionLimit(uint8 _limit) public onlyRole(OPERATOR_ROLE) {
         maxAlloctionLimit =_limit;
+    }
+
+    // Set the maximum number of refund 
+    function setMaxRefundLimit(uint8 _limit) public onlyRole(OPERATOR_ROLE) {
+        MAX_REFUND_LIMIT =_limit;
     }
 }

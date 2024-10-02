@@ -122,7 +122,7 @@ describe("Allocation-test", function () {
     console.log("USDT:", erc20token.address, "totalSupply:", totalSupply);
     console.log("admin Balance:", admin.address, await erc20token.balances(admin.address));
     // 为账号0x51A41BA1Ce3A6Ac0135aE48D6B92BEd32E075fF0 转移10000
-    await erc20token.transfer(user, 1000000);
+    await erc20token.transfer(user, 1000000 * 2000);
     console.log("user Balance:", user, await erc20token.balances(user));
     
     const TestAllocation = await ethers.getContractFactory("AllocationUpgradeable");
@@ -504,7 +504,7 @@ describe("Allocation-test", function () {
 
     // function isAllowOversold(uint256 _roundID)
     console.log("isAllowOversold Before:",await launchpad.isAllowOversold(roundID));
-    let _totalQuantity = 20;
+    let _totalQuantity = 50;
     let tx = await launchpad.connect(operator).setTotalQuantity(roundID, _totalQuantity, {
       from: operator.address,
       value: 0,
@@ -534,9 +534,10 @@ describe("Allocation-test", function () {
  */
     console.log("current user:", user.address);
     let roundID = lpid;
+
     let preSaleID = parseInt(new Date().getTime() / 1000) + 1;
     // limit
-    let preSaleNum = 20;
+    let preSaleNum = 1100;
     // let preSaleNum = 10;
     let voteNum = 1;
    
@@ -732,14 +733,26 @@ describe("Allocation-test", function () {
  */
     console.log("current user:", user.address);
     let roundID = lpid;
+
+    await launchpad.connect(operator).setMaxRefundLimit(10);
+    // function getTotalQuantity(uint256 _roundID) 
+    let getTotalQuantity = await launchpad.getTotalQuantity(roundID);
+    console.log("TotalQuantity After:", getTotalQuantity);
+    let getProjectTotalSales = await launchpad.getProjectTotalSales(roundID);
+    // function getProjectTotalSales(uint256 _roundID)
+    console.log("getProjectTotalSales:", getProjectTotalSales);
+
+    let maxSales = parseInt(getTotalQuantity) - parseInt(getProjectTotalSales) -1;
+
+
     let preSaleID = parseInt(new Date().getTime() / 1000) + 4;
     // limit
-    let preSaleNum = 20;
+    let preSaleNum = 1;
     // let preSaleNum = 1;
     let voteNum = 1;
    
     let owner = user.address;
-    let _price = 2000 * preSaleNum;
+    let _price = 2000 * getTotalQuantity;
     // get allowance
     let allowaceBefore = await erc20token.allowance(owner, launchpad.address);
     // approve
@@ -757,9 +770,23 @@ describe("Allocation-test", function () {
       allowaceBefore,
       allowaceAfter
     );
-   let tx = launchpad
+
+    for(let i=0;i< maxSales;i++){
+      preSaleID += i;
+      await launchpad
       .connect(user)
       .preSale(roundID, preSaleID, preSaleNum, voteNum,{
+        from: owner,
+        value: 0,
+      });
+
+      console.log("TotalSales:", await launchpad.getProjectTotalSales(roundID));
+    }
+
+
+   let tx = launchpad
+      .connect(user)
+      .preSale(roundID, preSaleID + 1, preSaleNum + 4, voteNum,{
         from: owner,
         value: 0,
       });
@@ -842,7 +869,14 @@ describe("Allocation-test", function () {
     let vote = await launchpad.getProjectVote(roundID);
     console.log("getProjectVote: voteCount", n(vote[0]), "totalVote", n(vote[1]), "voteRatio", n(vote[2]));
     // 设置二次投票时间-进行中
-    await coreskyHub.connect(signBot).presaleRefund(roundID);
+    let limit = parseInt(await launchpad.MAX_REFUND_LIMIT());
+    
+    let getProjectTotalSales = parseInt(await launchpad.getProjectTotalSales(roundID));
+
+    let count = getProjectTotalSales / limit + 1;
+    for(let i=0;i< count;i++){
+      await coreskyHub.connect(signBot).presaleRefund(roundID);
+    }
   });
 
   it("A1-coreskyHub-setVoteEndTime-operator", async function () {
@@ -1196,7 +1230,20 @@ describe("Allocation-test", function () {
     console.log("Coresky-AlloctionInfo:",info);
   });
 
+  
+  it("A1-Coresky-Alloction-withdrawalAllocation", async function () {
+    const { admin, operator, bob, sam, user } = await signer();
+    const _amount = await launchpad.getAllocationWithdrawableAmount(lpid);
+    console.log("Coresky-AlloctionInfo:", n(_amount));
 
+    let tx = launchpad.connect(operator).withdrawalAllocation(lpid, operator.address, n(_amount));
+    
+    await (0, chai.expect)(tx).to.be.revertedWith("Params amount is empty");
+  
+
+  });
+
+  // if(1==1) return;
     ////////////////////////////////Test Allocation two//////////////////////////////////////
     it("A2-IssueToken", async function () {
       const { admin, operator, bob } = await signer();
@@ -1948,18 +1995,6 @@ describe("Allocation-test", function () {
     //   const info = await launchpad.getAllocationWithdrawableAmount(lpid2);
     //   console.log("Coresky-AlloctionInfo:",info);
     // });
-
-    it("A1-Coresky-Alloction-withdrawalAllocation", async function () {
-      const { admin, operator, bob, sam, user } = await signer();
-      const _amount = await launchpad.getAllocationWithdrawableAmount(lpid);
-      console.log("Coresky-AlloctionInfo:", n(_amount));
-
-      let tx = launchpad.connect(operator).withdrawalAllocation(lpid, operator.address, n(_amount));
-      
-      await (0, chai.expect)(tx).to.be.revertedWith("Params amount is empty");
-    
-
-    });
         
     it("A2-Coresky-Alloction-withdrawalAllocation", async function () {
       const { admin, operator, bob, sam, user } = await signer();
@@ -2414,7 +2449,6 @@ describe("Allocation-test", function () {
 
     });
 
-if(1==1) return;
     ////////////////////////////////Test Allocation Four//////////////////////////////////////
     it("A4-IssueToken", async function () {
       const { admin, operator, bob } = await signer();
