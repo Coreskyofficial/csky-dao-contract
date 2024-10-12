@@ -996,7 +996,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
             require(balance >= _amount, "The withdrawal amount for this allocation is insufficient");
             // _to.transfer(_amount);
             
-            (bool success, ) = _to.call{value: balance}("");
+            (bool success, ) = _to.call{value: _amount}("");
             require(success, "Transfer failed.");
         } else {
             uint256 balance = IERC20(project.payment).balanceOf(address(this));
