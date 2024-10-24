@@ -29,7 +29,6 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     bytes32 public constant ASSET_ROLE = keccak256("ASSET_ROLE");
     bytes32 public constant ALLOCATION_ASSET_ROLE = keccak256("ALLOCATION_ASSET_ROLE");
 
-    bool private _initialized;
     // true or false auto mint apNFT
     bool public autoMintApNFT;
 
@@ -100,7 +99,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
     mapping(uint256=> mapping(address => uint256)) public withdrawalAllocationTo;
     // roundID => WithdrawalAllocationTotalAmount
     mapping(uint256=> uint256) public withdrawalAllocationTotalAmount;
-
+    
+    // roundID => lock:ture/false
+    mapping(uint256=> bool) private presaleRefundLock;
 
     event WithdrawalAllocation(uint256 indexed _roundID, address indexed _to, uint256 indexed _amount);
 
@@ -128,12 +129,9 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
      * @dev initialize the contract by setting a `admin_` and a `operator_` to the Alloction.
      */
     function initialize(address admin_, address operator_) external initializer{
-        require(!_initialized, "Initialized");
-
         __ReentrancyGuard_init();
         _setupRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(OPERATOR_ROLE, operator_);
-        _initialized = true;
         maxAlloctionLimit = 2;
     }
     
@@ -313,7 +311,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         // If the total number is greater than 0, oversold is allowed
         if(allowOversold[roundID]){
             require(project.totalSales + preSaleNum <= totalQuantity[roundID], "The LaunchPad activity has sold out");
-            if(project.totalSales + preSaleNum >= totalQuantity[roundID]){
+            if(project.totalSales + preSaleNum == totalQuantity[roundID]){
                 project.endTime = block.timestamp;
             }
         }
@@ -458,7 +456,11 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
         if(fundraisingStatus[roundID] != Types.FundraisingStatus.Fail){
             return;
         }
-
+        
+        if(presaleRefundLock[roundID]){
+            return;
+        }
+        presaleRefundLock[roundID] = true;
         // Get the project associated with the given roundID
         Types.Project storage project = round[roundID];
         Types.PreSaleLog[] memory _logs = preSaleLog[roundID];
@@ -505,6 +507,7 @@ contract AllocationUpgradeable is Initializable, AccessControlUpgradeable, Reent
 
         withdrawalAllocationTotalAmount[roundID] += total;
 
+        presaleRefundLock[roundID] = false;
         emit PresaleRefund(roundID);
     }
 
